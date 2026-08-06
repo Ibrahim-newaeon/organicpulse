@@ -1,0 +1,15 @@
+{
+  "name": "organicpulse",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single-file organic social media audit tool — Meta-focused, bilingual EN/AR, evidence-first. The product is organicpulse.html; open it in a browser.",
+  "scripts": {
+    "test": "playwright test",
+    "test:desktop": "playwright test --project=desktop",
+    "test:mobile": "playwright test --project=mobile",
+    "test:live-ocr": "LIVE_OCR=1 playwright test tests/ocr-live.spec.js --project=desktop"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0"
+  }
+}

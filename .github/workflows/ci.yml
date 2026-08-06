@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Syntax-check inline script blocks
+        run: |
+          python3 -c "
+          import io,re
+          h=io.open('organicpulse.html',encoding='utf-8').read()
+          for i,b in enumerate(re.findall(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', h, re.S)):
+              io.open(f'_b{i}.js','w',encoding='utf-8').write(b)
+          "
+          for f in _b*.js; do node --check "$f"; done
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm i
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
