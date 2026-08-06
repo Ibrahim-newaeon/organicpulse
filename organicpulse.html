@@ -11,7 +11,7 @@
 <style>
 /* ============================================================
    ORGANIC PULSE — Social Media Organic Audit Tool (single file)
-   Design: Martech dark-navy theme (martechjo.com) · ARTECH brand
+   Design: REVacity2 system (eman-salameh87-hub.github.io/REVacity2) · OrganicPulse brand
    ============================================================ */
 :root{
   /* REVacity2 design system — https://eman-salameh87-hub.github.io/REVacity2/
@@ -495,13 +495,13 @@ table.data.review input.invalid{border-color:var(--bad)}
 <body>
 <header class="app-header">
   <div class="brand">
-    <svg class="brand-logo" viewBox="0 0 250 48" role="img" aria-label="ARTECH">
+    <svg class="brand-logo" viewBox="0 0 250 48" role="img" aria-label="OrganicPulse">
       <g fill="none" stroke-width="7" stroke-linecap="round">
         <path d="M12 39 L26 11" stroke="#9db4ff"/>
         <path d="M27 39 L41 11" stroke="#ffc857"/>
         <path d="M42 39 L56 11" stroke="#ff4d6d"/>
       </g>
-      <text x="70" y="36" font-family="Cormorant Garamond,serif" font-size="33" letter-spacing="3" fill="#eef0ff">ARTECH</text>
+      <text x="66" y="35" font-family="Cormorant Garamond,serif" font-size="27" letter-spacing="0.5"><tspan fill="#eef0ff">Organic</tspan><tspan fill="#9db4ff">Pulse</tspan></text>
     </svg>
     <small class="brand-tag" data-i18n="tagline">Social Media Organic Audit</small>
   </div>
@@ -889,7 +889,7 @@ const METRICS = [
 /* bilingual helpers — resolve at call time from current language */
 function L(en,ar){ return (S.lang==="ar"&&ar)?ar:en; }
 function mLabel(m){ return L(m.label,m.ar); }
-const ARTECH_LOGO='<svg viewBox="0 0 250 48" role="img" aria-label="ARTECH" style="height:46px;width:auto;display:block;margin-bottom:.5rem"><g fill="none" stroke-width="7" stroke-linecap="round"><path d="M12 39 L26 11" stroke="#9db4ff"/><path d="M27 39 L41 11" stroke="#ffc857"/><path d="M42 39 L56 11" stroke="#ff4d6d"/></g><text x="70" y="36" font-family="Cormorant Garamond,serif" font-size="33" letter-spacing="3" fill="currentColor">ARTECH</text></svg>';
+const BRAND_LOGO='<svg viewBox="0 0 250 48" role="img" aria-label="OrganicPulse" style="height:46px;width:auto;display:block;margin-bottom:.5rem"><g fill="none" stroke-width="7" stroke-linecap="round"><path d="M12 39 L26 11" stroke="#9db4ff"/><path d="M27 39 L41 11" stroke="#ffc857"/><path d="M42 39 L56 11" stroke="#ff4d6d"/></g><text x="66" y="35" font-family="Cormorant Garamond,serif" font-size="27" letter-spacing="0.5"><tspan fill="currentColor">Organic</tspan><tspan fill="#9db4ff">Pulse</tspan></text></svg>';
 function metricsFor(p){ return METRICS.filter(m=>!m.platforms||m.platforms.includes(p)); }
 
 /* ---------- content formats ----------
@@ -2068,7 +2068,7 @@ function renderReport(){
   Object.keys(charts).forEach(killChart);
   const en=enabledPlatforms(), body=$("#reportBody");
   const m=S.meta;
-  const logoHtml=S.brand.logo?`<img src="${S.brand.logo}" alt="${esc(m.client||"logo")}" style="height:54px;max-width:200px;object-fit:contain;display:block;margin-bottom:.6rem">`:ARTECH_LOGO;
+  const logoHtml=S.brand.logo?`<img src="${S.brand.logo}" alt="${esc(m.client||"logo")}" style="height:54px;max-width:200px;object-fit:contain;display:block;margin-bottom:.6rem">`:BRAND_LOGO;
   $("#reportMeta").innerHTML=logoHtml+[
     m.client?`<b>${esc(m.client)}</b>`:null,
     m.industry?esc(L(INDUSTRY_EN[m.industry]||m.industry,INDUSTRY_AR[m.industry]||m.industry)):null,
