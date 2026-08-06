@@ -14,7 +14,7 @@ lines across months for followers, reach, engagements, ER and pillar scores.
 - Guards: a snapshot is immutable; re-closing the same period asks before replacing; trend deltas
   only ever compare equal-length periods.
 
-## 2 · Executive summary generator (EN/AR)
+## 2 · Executive summary generator (EN/AR) — ✅ shipped 2026-08-06
 
 One click builds a bilingual executive summary from computed values only — headline deltas, top
 wins, top issues, missing-data list — following the structure of the agency's monthly report
@@ -24,6 +24,7 @@ template. Copy button; text appears in the printed report.
   omitted, never padded.
 - Every figure in the summary must be traceable to a metric in the audit (same rule as
   recommendations).
+- Details: `docs/exec_summary.md`.
 
 ## 3 · Community management module
 

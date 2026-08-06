@@ -399,6 +399,7 @@ dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
   .chip{border-color:#bbb;color:#444}
   .banner{border-color:#d8c27a;background:#fdf8e7;color:#555}
   .narrative{background:#f7f7f7;color:#333;border-color:#ddd}
+  .exec-text{background:#f7f7f7;color:#222;border-color:#ddd}
   .narrative b{color:#111}
   details.appendix summary{color:#333}
 }
@@ -472,6 +473,9 @@ table.data.review input.invalid{border-color:var(--bad)}
 .rv-ev{font-family:var(--font-mono);font-size:.66rem;color:var(--ink-faint);margin-top:.22rem;line-height:1.55;white-space:normal}
 .rv-note{font-size:.68rem;color:var(--warn);margin-top:.22rem;font-family:var(--font-body);line-height:1.5;white-space:normal}
 .rv-unit{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-faint);margin-inline-start:.2rem}
+.exec-text{font-family:var(--font-body);font-size:.86rem;line-height:1.85;white-space:pre-wrap;
+  background:var(--bg-raise);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:.95rem 1.1rem;color:var(--ink-dim)}
 .rv-raw{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-dim);background:var(--bg-raise);
   border:1px solid var(--line);border-radius:7px;padding:.6rem .7rem;max-height:260px;overflow:auto;white-space:pre-wrap}
 .ing-check{display:flex;align-items:center;gap:.6rem;min-height:var(--touch);font-size:.8rem;color:var(--ink-dim);cursor:pointer}
@@ -2136,6 +2140,178 @@ function pillarBarsHTML(pillars){
       <div class="pb-track"><div class="pb-fill" style="width:${sc===null?0:sc}%;background:${b.color}"></div></div></div>`;
   }).join("");
 }
+/* ---------- executive summary generator ----------
+   Template-filled from entered/imported values ONLY. A sentence whose inputs
+   are missing is omitted — never padded, never estimated. Structure follows
+   the agency monthly report template: 5-bullet story · wins/issues · priority
+   actions · data sources · data limitations. */
+function buildExecSummary(lang){
+  const T=(en,ar)=>lang==="ar"?ar:en;
+  const plats=enabledPlatforms().filter(p=>Object.keys(S.platforms[p].metrics.current).length);
+  const out=[]; let bullets=0;
+  const M=S.meta;
+  out.push(T("EXECUTIVE SUMMARY","الملخص التنفيذي"));
+  const head=[];
+  if(M.client) head.push(M.client.trim());
+  if(M.curStart&&M.curEnd) head.push(`${M.curStart} → ${M.curEnd}`);
+  if(head.length) out.push(head.join(" · "));
+  if(plats.length) out.push(T(
+    `Scope: organic performance only — paid media excluded. Platforms: ${plats.map(p=>PLATFORMS[p].label).join(", ")}.`,
+    `النطاق: الأداء العضوي فقط — الإعلانات المدفوعة مستثناة. المنصات: ${plats.map(p=>PLATFORMS[p].label).join("، ")}.`));
+  out.push("");
+
+  /* combined figure across platforms: sum of PROVIDED values only; the
+     combined delta is shown only when every counted platform has both periods */
+  const combo=(key)=>{
+    const withCur=plats.filter(p=>getMetric(p,"current",key)!==null);
+    if(!withCur.length) return null;
+    const cur=withCur.reduce((a,p)=>a+getMetric(p,"current",key),0);
+    const allPrev=withCur.every(p=>getMetric(p,"previous",key)!==null);
+    const prev=allPrev?withCur.reduce((a,p)=>a+getMetric(p,"previous",key),0):null;
+    return {cur,prev,delta:allPrev?deltaPct(cur,prev):null,n:withCur.length,plats:withCur};
+  };
+  const dTxt=(d)=>d===null?"":(d>=0?` (▲ +${fmt(d,1)}% ${T("vs previous","مقابل السابقة")})`:` (▼ ${fmt(d,1)}% ${T("vs previous","مقابل السابقة")})`);
+  const perP=(c,key)=>c.n>1?` (${c.plats.map(p=>`${PLATFORMS[p].label} ${fmt(getMetric(p,"current",key),0)}`).join(" · ")})`:"";
+
+  const bl=[];
+  /* 1 · health */
+  const scored=plats.map(p=>({p,r:scorePlatform(p)})).filter(x=>x.r.overall!==null);
+  if(scored.length){
+    const avg=scored.reduce((a,x)=>a+x.r.overall,0)/scored.length;
+    const band=avg>=75?T("healthy","صحي"):avg>=50?T("needs work","يحتاج عملاً"):T("critical","حرج");
+    bl.push(T(`Overall organic health: ${Math.round(avg)}/100 (${band}) across ${scored.length} scored platform${scored.length>1?"s":""} — relative to your editable benchmarks.`,
+              `الصحة العضوية العامة: ${Math.round(avg)}/100 (${band}) عبر ${scored.length} منصة مقيّمة — نسبةً إلى معاييرك القابلة للتعديل.`));
+  }
+  /* 2 · followers */
+  const cf=combo("followers");
+  if(cf) bl.push(T(`Followers${cf.n>1?" (combined)":""}: ${fmt(cf.cur,0)}${perP(cf,"followers")}${dTxt(cf.delta)}.`,
+                   `المتابعون${cf.n>1?" (إجمالي)":""}: ${fmt(cf.cur,0)}${perP(cf,"followers")}${dTxt(cf.delta)}.`));
+  /* 3 · reach + engagements + ER */
+  const cr=combo("reach"), ce=combo("engagements");
+  if(cr||ce){
+    const parts=[];
+    if(cr) parts.push(T(`reach ${fmt(cr.cur,0)}${dTxt(cr.delta)}`,`الوصول ${fmt(cr.cur,0)}${dTxt(cr.delta)}`));
+    if(ce) parts.push(T(`engagements ${fmt(ce.cur,0)}${dTxt(ce.delta)}`,`التفاعلات ${fmt(ce.cur,0)}${dTxt(ce.delta)}`));
+    let er="";
+    if(cr&&ce&&cr.cur>0){
+      const erv=ce.cur/cr.cur*100;
+      er=T(` — ER by reach ${fmt(erv)}%`,` — معدل التفاعل بالوصول ${fmt(erv)}%`);
+      if(plats.length===1){
+        const tgt=S.benchmarks[plats[0]].er_reach;
+        if(num(tgt)!==null) er+=T(` (target ${fmt(tgt)}%: ${erv>=tgt?"met":"not met"})`,` (الهدف ${fmt(tgt)}%: ${erv>=tgt?"محقق":"غير محقق"})`);
+      }
+    }
+    bl.push(T(`Visibility & response: ${parts.join(" · ")}${er}.`,`الظهور والاستجابة: ${parts.join(" · ")}${er}.`));
+  }
+  /* 4 · best format */
+  let best=null;
+  plats.forEach(p=>{
+    const st=formatStats(p,"current");
+    if(st.rows.length>=2) st.rows.forEach(r=>{ if(r.index!==null&&(!best||r.index>best.r.index)) best={p,r}; });
+  });
+  if(best) bl.push(T(`Best-performing format: ${best.r.label} on ${PLATFORMS[best.p].label} — ${fmt(best.r.shareOutput,0)}% of posts earning ${fmt(best.r.shareEng,0)}% of engagement (index ${idxFmt(best.r.index)}).`,
+                     `أفضل صيغة أداءً: ${best.r.label} على ${PLATFORMS[best.p].label} — ${fmt(best.r.shareOutput,0)}% من المنشورات تحقق ${fmt(best.r.shareEng,0)}% من التفاعل (المؤشر ${idxFmt(best.r.index)}).`));
+  /* 5 · archived trajectory */
+  const arc=archForClient();
+  if(arc.length>=2){
+    const sumF=a=>{ const vals=Object.values(a.platforms).map(pl=>num(pl.metrics.followers)).filter(v=>v!==null);
+                    return vals.length?vals.reduce((x,y)=>x+y,0):null; };
+    const f0=sumF(arc[0]), f1=sumF(arc[arc.length-1]);
+    if(f0!==null&&f1!==null&&f0>0){
+      const d=deltaPct(f1,f0);
+      bl.push(T(`Across ${arc.length} archived months, followers moved ${fmt(f0,0)} → ${fmt(f1,0)} (${d>=0?"+":""}${fmt(d,1)}%).`,
+                `عبر ${arc.length} أشهر مؤرشفة، تحرك المتابعون ${fmt(f0,0)} ← ${fmt(f1,0)} (${d>=0?"+":""}${fmt(d,1)}%).`));
+    }
+  }
+  bullets=bl.length;
+  if(bl.length){
+    out.push(T("THE MONTH IN "+bl.length+" POINTS","الشهر في "+bl.length+" نقاط"));
+    bl.forEach(b=>out.push("• "+b));
+    out.push("");
+  }
+
+  /* wins / issues from pillar thresholds */
+  if(scored.length){
+    const results={}; scored.forEach(x=>results[x.p]=x.r);
+    const wi=execSummary(results,scored.map(x=>x.p));
+    if(wi.wins.length){ out.push(T("TOP WINS","أبرز المكاسب")); wi.wins.slice(0,3).forEach(w=>out.push("✔ "+w)); out.push(""); }
+    if(wi.issues.length){ out.push(T("TOP ISSUES","أبرز المشاكل")); wi.issues.slice(0,3).forEach(w=>out.push("⚠ "+w)); out.push(""); }
+  }
+
+  /* priority actions — every action tied to a triggered, evidence-backed rule */
+  const recs=buildRecs().slice().sort((a,b)=>a.rule.priority<b.rule.priority?-1:1).slice(0,3);
+  if(recs.length){
+    out.push(T("PRIORITY ACTIONS","الإجراءات ذات الأولوية"));
+    recs.forEach(r=>out.push(`[${r.rule.priority}] ${r.rule.title()} — ${PLATFORMS[r.platform].label}. ${r.rule.action()}`));
+    out.push("");
+  }
+
+  /* data sources from the provenance log */
+  const logs=S.importLog||[];
+  if(logs.length){
+    const bySrc={};
+    logs.forEach(e=>{ bySrc[e.source]=(bySrc[e.source]||0)+1; });
+    out.push(T("DATA SOURCES","مصادر البيانات"));
+    out.push(T(`${logs.length} import${logs.length>1?"s":""}: `,`${logs.length} عملية استيراد: `)+
+      Object.entries(bySrc).map(([k,v])=>`${k} ×${v}`).join(" · ")+
+      T(" (full provenance table in the report)."," (جدول المصدر الكامل في التقرير)."));
+    out.push("");
+  }else{
+    out.push(T("DATA SOURCES","مصادر البيانات"));
+    out.push(T("All values entered manually.","أُدخلت كل القيم يدوياً."));
+    out.push("");
+  }
+
+  /* limitations — never hidden */
+  const missing=[...new Set(plats.flatMap(p=>scorePlatform(p).missing))];
+  out.push(T("DATA LIMITATIONS","حدود البيانات"));
+  if(missing.length)
+    out.push(T(`${missing.length} metric(s) not provided and excluded from scoring — never guessed: ${missing.slice(0,5).join("; ")}${missing.length>5?" …":""}`,
+               `${missing.length} مقياساً غير متوفر ومستبعد من التقييم — لا يُخمَّن أبداً: ${missing.slice(0,5).join("؛ ")}${missing.length>5?" …":""}`));
+  else if(plats.length)
+    out.push(T("No tracked metric is missing for the scored platforms.","لا يوجد مقياس متتبع مفقود للمنصات المقيّمة."));
+  else
+    out.push(T("No platform data entered yet.","لا توجد بيانات منصات بعد."));
+  out.push("");
+  out.push(T("Generated by OrganicPulse from entered/imported values only — nothing estimated. Scores are relative to the editable benchmarks in step 3.",
+             "أُنشئ بواسطة OrganicPulse من القيم المُدخلة/المستوردة فقط — لا شيء مُقدَّر. الدرجات نسبية لمعايير الخطوة 3 القابلة للتعديل."));
+  return {text:out.join("\n"),bullets};
+}
+function execGenCardHTML(){
+  const cur=buildExecSummary(S.lang);
+  const body=cur.bullets>=2
+    ? `<pre class="exec-text" data-testid="exec-summary-text">${esc(cur.text)}</pre>
+       <div class="ing-actions no-print" style="margin-top:.7rem">
+         <button class="btn btn-primary" id="btnExecCopy" data-testid="btn-exec-copy">📋 ${esc(L("Copy","نسخ"))}</button>
+         <button class="btn" id="btnExecCopyBoth" data-testid="btn-exec-copy-both">📋 ${esc(L("Copy EN + AR","نسخ EN + AR"))}</button>
+       </div>`
+    : `<div class="empty-state" data-testid="exec-summary-empty">${esc(L("Not enough data for a summary yet — it needs at least two of: scores, followers, reach/engagements, formats, archive.","لا توجد بيانات كافية للملخص — يحتاج اثنين على الأقل من: الدرجات، المتابعون، الوصول/التفاعل، الصيغ، الأرشيف."))}</div>`;
+  return `<div class="card" data-testid="exec-card">
+    <h3>📝 ${esc(L("Executive summary (copy-ready)","الملخص التنفيذي (جاهز للنسخ)"))}</h3>
+    <p class="hint" style="margin-bottom:.7rem">${esc(L("Built only from the values in this audit — sentences with missing inputs are omitted, never padded.","مبني فقط من قيم هذا التدقيق — الجمل ذات المدخلات الناقصة تُحذف ولا تُحشى أبداً."))}</p>
+    ${body}
+  </div>`;
+}
+async function copyExecText(txt){
+  try{
+    await navigator.clipboard.writeText(txt);
+    toast(L("Copied to clipboard","نُسخ إلى الحافظة"));
+  }catch(e){
+    const ta=document.createElement("textarea");
+    ta.value=txt; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    let ok=false; try{ ok=document.execCommand("copy"); }catch(_){}
+    ta.remove();
+    toast(ok?L("Copied to clipboard","نُسخ إلى الحافظة"):L("Copy failed — select the text manually","تعذّر النسخ — حدّد النص يدوياً"));
+  }
+}
+function wireExecGen(){
+  const c=$("#btnExecCopy"), b=$("#btnExecCopyBoth");
+  if(c) c.addEventListener("click",()=>copyExecText(buildExecSummary(S.lang).text));
+  if(b) b.addEventListener("click",()=>copyExecText(
+    buildExecSummary("en").text+"\n\n"+"—".repeat(24)+"\n\n"+buildExecSummary("ar").text));
+}
+
 function renderReport(){
   Object.keys(charts).forEach(killChart);
   const en=enabledPlatforms(), body=$("#reportBody");
@@ -2156,7 +2332,7 @@ function renderReport(){
   const overall=scored.length?scored.reduce((a,p)=>a+results[p].overall,0)/scored.length:null;
   const ob=band(overall);
 
-  let html=howToCard()+`<div class="score-hero">
+  let html=howToCard()+execGenCardHTML()+`<div class="score-hero">
     <div class="score-ring">${ringSVG(overall,ob.color)}
       <div class="ring-val"><b style="color:${ob.color}">${overall===null?"—":Math.round(overall)}</b><span>${t("overallHealth","Overall health")}</span></div></div>
     <div class="pillar-bars">
@@ -2226,7 +2402,7 @@ function renderReport(){
   html+=archiveCardHTML();
   body.innerHTML=html;
   drawRadar(results,en); drawDeltas(results,en);
-  drawTrend(); wireArchive();
+  drawTrend(); wireArchive(); wireExecGen();
 }
 
 /* ---------- trends card (printable) ---------- */

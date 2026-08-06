@@ -2,6 +2,19 @@
 
 Full engineering notes for each milestone live in `docs/`.
 
+## 2026-08-06 (3) — Executive summary generator (roadmap item 2)
+
+- New **copy-ready executive summary card** at the top of the Report, EN + AR, following the
+  agency monthly-report template: header/scope, "the month in N points", top wins, top issues,
+  priority actions, data sources, data limitations, honesty footer.
+- Strictly template-filled from entered/imported values: a sentence with a missing input is
+  omitted (never padded), cross-platform deltas print only when every counted platform has both
+  periods, priority actions are the top-3 triggered recommendation rules verbatim, and the
+  missing-metrics list is always printed. Renders only when ≥2 headline bullets exist.
+- **Copy** (active language) and **Copy EN + AR** (both, separated) with a `file://`-safe
+  clipboard fallback. Buttons are screen-only; the summary text prints with the report.
+- Suite: **454 passing** (21 new tests × desktop + Pixel 7). Details: `docs/exec_summary.md`.
+
 ## 2026-08-06 (2) — Monthly trend archive (roadmap item 1)
 
 - **"Close this month"** on the Report freezes the current audit — raw current-period metrics,
