@@ -43,6 +43,9 @@
   --shadow:0 10px 34px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* the hidden attribute must always win — .banner's display:flex was overriding
+   it, leaving "hidden" warnings permanently on screen */
+[hidden]{display:none!important}
 html{scroll-behavior:smooth}
 body{
   background:var(--bg);
@@ -1145,7 +1148,8 @@ function defaultState(){
     benchPreset:"",   // active industry preset key ("" = generic baseline)
     weights:Object.fromEntries(PILLARS.map(pl=>[pl.key,pl.defaultWeight])),
     brand:{logo:"",primary:"",secondary:""},
-    importLog:[]
+    importLog:[],
+    archive:[]
   };
 }
 let S = defaultState();
@@ -1163,6 +1167,7 @@ function hydrate(parsed){
   next.benchEdited=parsed.benchEdited||{};
   next.benchPreset=parsed.benchPreset===undefined?"":parsed.benchPreset;
   next.importLog=Array.isArray(parsed.importLog)?parsed.importLog:[];
+  next.archive=Array.isArray(parsed.archive)?parsed.archive:[];
   next.platforms={};
   Object.keys(PLATFORMS).forEach(p=>{
     const src=(parsed.platforms&&parsed.platforms[p])||{};
@@ -1365,6 +1370,73 @@ function avgDefined(parts){
 }
 
 /* returns {pillars:{growth:{score,inputs[]},...}, overall, missing[]} */
+/* ---------- monthly trend archive ----------
+   A snapshot freezes the audit AT CLOSE TIME: raw current-period metrics,
+   derived rates and pillar scores are deep-copied, so later benchmark edits
+   never rewrite history. Snapshots are immutable — delete and re-close is the
+   only way to change one. */
+function normClient(c){ return String(c||"").trim().toLowerCase(); }
+function buildSnapshot(){
+  const plats={};
+  enabledPlatforms().forEach(p=>{
+    const cur=S.platforms[p].metrics.current;
+    if(!Object.keys(cur).length) return;
+    const r=scorePlatform(p), d=r.derived||derive(p,"current");
+    plats[p]={
+      metrics:JSON.parse(JSON.stringify(cur)),
+      derived:{er_reach:d.er_reach??null,er_followers:d.er_followers??null,
+               reach_rate:d.reach_rate??null,eng_per_post:d.eng_per_post??null,
+               posts_per_week:d.posts_per_week??null},
+      growth:r.growthRate??null,
+      scores:{overall:r.overall===null?null:Math.round(r.overall*10)/10,
+              pillars:Object.fromEntries(PILLARS.map(pl=>[pl.key,
+                r.pillars[pl.key]===null?null:Math.round(r.pillars[pl.key]*10)/10]))}
+    };
+  });
+  return plats;
+}
+function closeMonth(replace){
+  S.archive=S.archive||[];
+  const c=String(S.meta.client||"").trim();
+  if(!c){ toast(L("Set the Client / Brand name in Setup before archiving.","حدد اسم العميل في الإعداد قبل الأرشفة.")); return false; }
+  if(!S.meta.curStart||!S.meta.curEnd){ toast(L("Set the current period dates in Setup before archiving.","حدد تواريخ الفترة الحالية قبل الأرشفة.")); return false; }
+  const plats=buildSnapshot();
+  if(!Object.keys(plats).length){ toast(L("No platform has any current-period data to archive.","لا توجد بيانات في الفترة الحالية للأرشفة.")); return false; }
+  const key=normClient(c);
+  const dup=S.archive.find(a=>a.key===key&&a.curStart===S.meta.curStart&&a.curEnd===S.meta.curEnd);
+  if(dup&&!replace){
+    const w=$("#archiveDupWarn"); if(w) w.hidden=false;
+    return false;
+  }
+  if(dup) S.archive=S.archive.filter(a=>a.id!==dup.id);
+  S.archive.push({
+    id:"snap_"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+    client:c, key, curStart:S.meta.curStart, curEnd:S.meta.curEnd,
+    days:periodDays("current"), savedAt:new Date().toISOString(),
+    platforms:plats
+  });
+  saveLocal();
+  toast(dup?L("Snapshot replaced.","تم استبدال اللقطة."):L("Month archived.","تمت أرشفة الشهر."));
+  renderReport();
+  return true;
+}
+function archForClient(){
+  const k=normClient(S.meta.client);
+  if(!k) return [];
+  return (S.archive||[]).filter(a=>a.key===k)
+    .slice().sort((a,b)=>a.curEnd<b.curEnd?-1:(a.curEnd>b.curEnd?1:0));
+}
+/* kind: "point" = end-of-period stock (always comparable) · "total" = period sum
+   (flagged when period lengths differ) · "rate" = normalized (comparable) */
+const TREND_METRICS=[
+  {key:"followers",label:"Followers",ar:"المتابعون",kind:"point",src:pl=>num(pl.metrics.followers)},
+  {key:"reach",label:"Reach",ar:"الوصول",kind:"total",src:pl=>num(pl.metrics.reach)},
+  {key:"engagements",label:"Engagements",ar:"التفاعلات",kind:"total",src:pl=>num(pl.metrics.engagements)},
+  {key:"er",label:"ER by reach %",ar:"معدل التفاعل %",kind:"rate",src:pl=>pl.derived?pl.derived.er_reach:null},
+  {key:"score",label:"Overall score",ar:"الدرجة الكلية",kind:"rate",src:pl=>pl.scores?pl.scores.overall:null}
+];
+let trendMetric="followers";
+
 function scorePlatform(p){
   const B=S.benchmarks[p], dCur=derive(p,"current");
   const gr=growthRate(p);
@@ -2150,8 +2222,119 @@ function renderReport(){
     html+=formatReport(p);
     html+=audienceReport(p);
   });
+  html+=trendsCardHTML();
+  html+=archiveCardHTML();
   body.innerHTML=html;
   drawRadar(results,en); drawDeltas(results,en);
+  drawTrend(); wireArchive();
+}
+
+/* ---------- trends card (printable) ---------- */
+function trendsCardHTML(){
+  const arr=archForClient();
+  if(arr.length<2) return "";
+  const segs=TREND_METRICS.map(m=>
+    `<button type="button" data-trend-metric="${m.key}" data-testid="trend-metric-${m.key}"
+      aria-pressed="${String(m.key===trendMetric)}">${esc(L(m.label,m.ar))}</button>`).join("");
+  const last=arr[arr.length-1], prev=arr[arr.length-2];
+  const daysDiffer=last.days!==null&&prev.days!==null&&last.days!==prev.days;
+  const plats=[...new Set([...Object.keys(prev.platforms),...Object.keys(last.platforms)])]
+    .filter(p=>PLATFORMS[p]);
+  const rows=plats.map(p=>{
+    const cells=TREND_METRICS.map(m=>{
+      const a=last.platforms[p]?m.src(last.platforms[p]):null;
+      const b=prev.platforms[p]?m.src(prev.platforms[p]):null;
+      const d=deltaPct(a,b);
+      const flag=(m.kind==="total"&&daysDiffer&&d!==null)
+        ?` <span class="chip warn" data-testid="trend-flag" title="${esc(L(`Period lengths differ (${prev.days} vs ${last.days} days) — totals are not directly comparable; rates still are.`,`طول الفترتين مختلف (${prev.days} مقابل ${last.days} يوماً) — المجاميع غير قابلة للمقارنة المباشرة بعكس المعدلات.`))}">≠ ${esc(L("days","أيام"))}</span>`:"";
+      const dTxt=d===null?"":` <span class="${d>=0?"delta-up":"delta-down"}">${d>=0?"▲":"▼"}${fmt(Math.abs(d),1)}%</span>`;
+      return `<td>${m.key==="er"||m.key==="score"?fmt(a):fmt(a,0)}${dTxt}${flag}</td>`;
+    }).join("");
+    return `<tr><td>${esc(PLATFORMS[p].label)}</td>${cells}</tr>`;
+  }).join("");
+  return `<div class="card" data-testid="trends-card">
+    <h3>📈 ${esc(L("Monthly trends","الاتجاهات الشهرية"))} — ${esc(last.client)}
+      <span class="chip info">${arr.length} ${esc(L("snapshots","لقطة"))}</span></h3>
+    <p class="hint" style="margin-bottom:.6rem">${esc(L("Values are frozen at close time — later benchmark edits never rewrite history. Δ compares the two most recent snapshots.","القيم مجمّدة وقت الإغلاق — تعديل المعايير لاحقاً لا يغيّر التاريخ. يقارن Δ آخر لقطتين."))}</p>
+    <div class="seg no-print" role="group" aria-label="${esc(L("Trend metric","مقياس الاتجاه"))}" style="margin-bottom:.7rem">${segs}</div>
+    <div class="chart-box sm"><canvas id="chartTrend"></canvas></div>
+    <h3 style="font-size:.78rem;margin-top:1rem">${esc(L("Latest vs previous snapshot","آخر لقطة مقابل السابقة"))} · ${esc(prev.curEnd)} → ${esc(last.curEnd)}</h3>
+    <div class="tbl-wrap"><table class="data" data-testid="trend-table"><thead><tr>
+      <th>${esc(L("Platform","المنصة"))}</th>${TREND_METRICS.map(m=>`<th>${esc(L(m.label,m.ar))}</th>`).join("")}
+    </tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+function drawTrend(){
+  const el=$("#chartTrend"); if(!el) return;
+  if(typeof Chart==="undefined"){
+    /* offline first load — the chart library never arrived; say so instead of
+       leaving dead space (the delta table below still carries the numbers) */
+    el.closest(".chart-box").innerHTML=`<p class="hint" style="padding-top:2rem;text-align:center">${esc(L("Chart library unavailable offline — the table below has the same numbers.","مكتبة الرسوم غير متاحة دون اتصال — الجدول أدناه يحمل الأرقام نفسها."))}</p>`;
+    return;
+  }
+  const arr=archForClient(); if(arr.length<2) return;
+  const met=TREND_METRICS.find(m=>m.key===trendMetric)||TREND_METRICS[0];
+  const plats=[...new Set(arr.flatMap(a=>Object.keys(a.platforms)))].filter(p=>PLATFORMS[p]);
+  killChart("trend");
+  charts.trend=new Chart(el,{type:"line",
+    data:{labels:arr.map(a=>a.curEnd),
+      datasets:plats.map(p=>({label:PLATFORMS[p].label,
+        data:arr.map(a=>a.platforms[p]?met.src(a.platforms[p]):null),
+        borderColor:PLATFORMS[p].color,backgroundColor:PLATFORMS[p].color+"33",
+        spanGaps:true,pointRadius:4,tension:.25}))},
+    options:{maintainAspectRatio:false,animation:false,
+      scales:{x:{grid:{color:"rgba(238,240,255,.08)"},ticks:{color:"rgba(238,240,255,.72)"}},
+        y:{grid:{color:"rgba(238,240,255,.16)"},ticks:{color:"rgba(238,240,255,.72)"}}},
+      plugins:{legend:{labels:{color:"rgba(238,240,255,.72)",boxWidth:12}}}}});
+}
+
+/* ---------- archive management card (screen only) ---------- */
+function archiveCardHTML(){
+  const all=(S.archive||[]).slice().sort((a,b)=>a.savedAt<b.savedAt?1:-1);
+  const items=all.map(a=>{
+    const pl=Object.keys(a.platforms).filter(p=>PLATFORMS[p]).map(p=>PLATFORMS[p].icon).join(" ");
+    return `<div class="metric-row" data-testid="archive-item-${a.id}" style="grid-template-columns:minmax(0,2fr) 1fr auto">
+      <div class="m-label"><b>${esc(a.client)}</b>${esc(a.curStart)} → ${esc(a.curEnd)} · ${a.days??"?"} ${esc(L("days","يوم"))} · ${pl}</div>
+      <div style="font-family:var(--font-mono);font-size:.7rem;color:var(--ink-faint);align-self:center">${esc(String(a.savedAt).slice(0,10))}</div>
+      <button class="btn btn-sm btn-danger" data-arch-del="${a.id}" data-testid="btn-archive-del-${a.id}">✕</button>
+    </div>`;
+  }).join("");
+  return `<div class="card no-print" data-testid="archive-card">
+    <h3>📸 ${esc(L("Archive","الأرشيف"))}</h3>
+    <p class="hint" style="margin-bottom:.7rem">${esc(L("Close this month to freeze the current audit (metrics + scores) into the archive. Two or more snapshots for the same client unlock the trends card above. Snapshots ride along in Save Audit / Load Audit.","أغلق الشهر لتجميد التدقيق الحالي في الأرشيف. لقطتان أو أكثر لنفس العميل تُفعّلان بطاقة الاتجاهات. تُحفظ اللقطات مع حفظ/تحميل التدقيق."))}</p>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary" id="btnArchiveClose" data-testid="btn-archive-close">📸 ${esc(L("Close this month into the archive","أغلق هذا الشهر في الأرشيف"))}</button>
+    </div>
+    <div class="banner" id="archiveDupWarn" data-testid="archive-dup-warn" hidden style="margin-top:.8rem;margin-bottom:0">⚠️
+      <span><b>${esc(L("This client + period is already archived.","هذا العميل وهذه الفترة مؤرشفان بالفعل."))}</b> ${esc(L("Replacing overwrites the frozen snapshot with today's values.","الاستبدال يحل محل اللقطة المجمّدة بقيم اليوم."))}
+      <div style="display:flex;gap:.5rem;margin-top:.5rem">
+        <button class="btn btn-sm btn-danger" id="btnArchiveReplace" data-testid="btn-archive-replace">${esc(L("Replace snapshot","استبدل اللقطة"))}</button>
+        <button class="btn btn-sm" id="btnArchiveCancel" data-testid="btn-archive-cancel">${esc(L("Cancel","إلغاء"))}</button>
+      </div></span></div>
+    ${all.length?`<div style="margin-top:1rem" data-testid="archive-list">${items}</div>`
+      :`<p class="hint" style="margin-top:.8rem">${esc(L("No snapshots yet.","لا لقطات بعد."))}</p>`}
+  </div>`;
+}
+function wireArchive(){
+  const btn=$("#btnArchiveClose");
+  if(btn) btn.addEventListener("click",()=>closeMonth(false));
+  const rep=$("#btnArchiveReplace"), can=$("#btnArchiveCancel");
+  if(rep) rep.addEventListener("click",()=>closeMonth(true));
+  if(can) can.addEventListener("click",()=>{ const w=$("#archiveDupWarn"); if(w) w.hidden=true; });
+  $$("#reportBody [data-arch-del]").forEach(b=>b.addEventListener("click",()=>{
+    if(b.dataset.confirm!=="1"){
+      b.dataset.confirm="1"; b.textContent=L("Sure?","متأكد؟");
+      setTimeout(()=>{ b.dataset.confirm=""; b.textContent="✕"; },3000);
+      return;
+    }
+    S.archive=(S.archive||[]).filter(a=>a.id!==b.dataset.archDel);
+    saveLocal(); toast(L("Snapshot deleted.","تم حذف اللقطة.")); renderReport();
+  }));
+  $$("#reportBody [data-trend-metric]").forEach(b=>b.addEventListener("click",()=>{
+    trendMetric=b.dataset.trendMetric;
+    $$("#reportBody [data-trend-metric]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+    drawTrend();
+  }));
 }
 function idxFmt(n){ return (n===null||n===undefined||!Number.isFinite(n))?"—":n.toFixed(2); }
 function formatReport(p){
@@ -2328,6 +2511,10 @@ function renderCalc(){
     <div class="card"><h3>5 · ${F("Recommendation triggers","محفزات التوصيات")}</h3>
       <p style="font-size:.82rem;color:var(--ink-dim);margin-bottom:.7rem">${F("A recommendation appears only when its condition is met by your data. Three thresholds (story 70%, YouTube CTR 4%, TikTok completion 30%) are rule-of-thumb constants set in this tool and are labeled as such in the evidence.","تظهر التوصية فقط عندما تتحقق شروطها من بياناتك. ثلاث عتبات (القصص 70%، نقر يوتيوب 4%، إكمال تيك توك 30%) ثوابت استرشادية في الأداة ومُعلَّمة كذلك في الدليل.")}</p>
       <div class="tbl-wrap"><table class="data"><thead><tr><th>${F("Priority","الأولوية")}</th><th>${F("Recommendation","التوصية")}</th><th>${F("Trigger condition","شرط التفعيل")}</th><th>${F("Effort","الجهد")}</th></tr></thead><tbody>${recRows}</tbody></table></div>
+    </div>
+    <div class="card"><h3>6 · ${F("Monthly trend archive","أرشيف الاتجاهات الشهرية")}</h3>
+      <p style="font-size:.85rem;color:var(--ink-dim)">${F("Closing a month deep-copies the current-period metrics, derived rates and pillar scores into an immutable snapshot — editing benchmarks afterwards never rewrites archived scores. Trend Δ% = (snapshot − previous snapshot) ÷ previous × 100, comparing consecutive snapshots of the same client.","إغلاق الشهر ينسخ مقاييس الفترة الحالية والمعدلات المشتقة ودرجات المحاور إلى لقطة غير قابلة للتعديل — تعديل المعايير لاحقاً لا يغيّر الدرجات المؤرشفة. Δ% للاتجاه = (اللقطة − السابقة) ÷ السابقة × 100 لنفس العميل.")}</p>
+      <p style="font-size:.85rem;color:var(--ink-dim)">${F("Period-total metrics (reach, engagements) are flagged \"≠ days\" when the two periods have different lengths — their totals are not directly comparable, while point-in-time (followers) and rate metrics (ER, scores) remain valid.","تُعلَّم مقاييس مجموع الفترة (الوصول، التفاعلات) بعلامة \"≠ أيام\" عند اختلاف طول الفترتين — مجاميعها غير قابلة للمقارنة المباشرة، بينما تبقى المقاييس اللحظية (المتابعون) والمعدلات صالحة.")}</p>
     </div>`;
 }
 

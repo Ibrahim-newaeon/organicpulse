@@ -2,6 +2,24 @@
 
 Full engineering notes for each milestone live in `docs/`.
 
+## 2026-08-06 (2) — Monthly trend archive (roadmap item 1)
+
+- **"Close this month"** on the Report freezes the current audit — raw current-period metrics,
+  derived rates and pillar scores are deep-copied into an immutable snapshot (`S.archive[]`,
+  rides through localStorage and JSON save/load). Editing benchmarks or metrics afterwards never
+  rewrites archived history (asserted by tests).
+- **Trends card** appears once ≥2 snapshots exist for the same client (case/whitespace-insensitive
+  match): line chart across months per platform (Followers / Reach / Engagements / ER / Overall
+  score picker) + a latest-vs-previous delta table. Prints with the report; the management card
+  (close / replace / delete) is screen-only.
+- **Guards:** closing the same client+period warns before replacing; deletes need a second
+  confirming click; period-total metrics (reach, engagements) are flagged `≠ days` when the two
+  periods differ in length — point-in-time and rate metrics stay comparable. Rules documented in
+  the Calculations tab (§6).
+- **Bug found by the new tests:** the `hidden` attribute was silently defeated by `.banner`'s
+  `display:flex` — a global `[hidden]{display:none!important}` now guarantees hidden means hidden.
+- Suite: **412 passing** (desktop + Pixel 7).
+
 ## 2026-08-06 — REVacity2 theme + repo architecture
 
 - Re-themed the whole tool to the REVacity2 design system: bg `#030208`, cream ink `#eef0ff`,

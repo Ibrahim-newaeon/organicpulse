@@ -3,7 +3,7 @@
 Selected 2026-08-06. Ordered by suggested build sequence — each item is scoped to land with tests,
 following the data-integrity rules in CLAUDE.md (no invented numbers, evidence on every value).
 
-## 1 · Monthly trend archive
+## 1 · Monthly trend archive — ✅ shipped 2026-08-06
 
 Snapshot each finished audit (client + period + metrics + scores) into an archive; draw trend
 lines across months for followers, reach, engagements, ER and pillar scores.
