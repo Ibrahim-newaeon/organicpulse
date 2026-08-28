@@ -2,6 +2,22 @@
 
 Full engineering notes for each milestone live in `docs/`.
 
+## 2026-08-28 (3) — Competitor capture kit (roadmap item 5 — roadmap complete)
+
+- **"Screenshots of: A competitor's public profile"** mode in the screenshot importer: competitor
+  picker (new competitors created on Apply, never before), per-bucket capture dates (required —
+  undated captures cannot even be staged), buckets relabeled to Current/Previous capture.
+- Mapper for what a public profile actually shows: followers (EXACT; K/M shorthand APPROX,
+  lowercase refused), all-time header post count staged **RISKY-off** with a corruption warning
+  (the benchmark needs in-period posts), per-post likes/comments summed across post screenshots
+  ("Liked by X and N others" → N+1 APPROX; hidden likes → RISKY understatement), following
+  surfaced as not-mapped. Same review table, evidence rules and Apply gate as everything else.
+- Honesty banner in the UI: no scraping (Meta ToS), and reach/impressions/story metrics are not
+  public and never estimated — paid third-party trackers are the only route.
+- `dedupeFindings` keys now include the competitor id; the previous-period audience-overwrite
+  guard exempts competitor targets (they have a real per-bucket home).
+- Suite: **584 passing** (17 new tests × desktop + Pixel 7). Details: `docs/capture_kit.md`.
+
 ## 2026-08-28 (2) — Competitor benchmark (roadmap item 4)
 
 - **Competitors entry card** in step 2: per-competitor accordion (name, handle, platform) with

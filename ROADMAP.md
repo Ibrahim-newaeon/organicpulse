@@ -46,7 +46,9 @@ cadence, per-post engagement where observable, share-of-voice within the tracked
 - Shipped as a Data-step entry card + per-platform Report card (six-step structure preserved).
   Details: `docs/competitor_benchmark.md`.
 
-## 5 · Competitor capture kit — what's collectable **without** any API
+## 5 · Competitor capture kit — what's collectable **without** any API — ✅ shipped 2026-08-28
+
+**All five roadmap items are now shipped.** Details: `docs/capture_kit.md`.
 
 Research + tooling for the practical question: which competitor stats can be gathered with no API
 integration.

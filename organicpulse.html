@@ -710,6 +710,34 @@ table.data.review input.invalid{border-color:var(--bad)}
           </select></div>
       </div>
 
+      <div class="ing-opts" style="margin-top:.2rem">
+        <div class="field" style="grid-column:span 3"><label data-i18n="ckWho">Screenshots of</label>
+          <div role="group" aria-label="Screenshots of" style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button type="button" class="btn btn-sm" id="shotModeMy" data-testid="shot-mode-my" aria-pressed="true" data-i18n="ckModeMy">My account (Insights)</button>
+            <button type="button" class="btn btn-sm" id="shotModeComp" data-testid="shot-mode-comp" aria-pressed="false" data-i18n="ckModeComp">A competitor's public profile</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="compKit" hidden data-testid="comp-kit">
+        <div class="banner blue" data-testid="comp-kit-honesty" style="margin:.2rem 0 .7rem"><span aria-hidden="true">🛡️</span><span>
+          <b data-i18n="ckH1">You take the screenshots yourself, from public profiles.</b>
+          <span data-i18n="ckH2">Automated scraping of Instagram/Facebook violates Meta's Terms of Service and gets accounts blocked — this tool does not and will not scrape.</span><br>
+          <span data-i18n="ckH3">Publicly visible and mapped here: follower count, all-time post count, and visible per-post likes + comments.</span><br>
+          <span data-i18n="ckH4">Not public and never estimated here: reach, impressions, views, saves, shares, story metrics, audience demographics. Paid third-party trackers are the only route to those.</span>
+        </span></div>
+        <div class="ing-opts">
+          <div class="field"><label for="ckComp" data-i18n="ckCompetitor">Competitor</label>
+            <select id="ckComp" data-testid="ck-competitor"></select></div>
+          <div class="field" id="ckNewWrap" hidden><label for="ckNewName" data-i18n="ckNewName">New competitor name</label>
+            <input type="text" id="ckNewName" data-testid="ck-new-name" placeholder="Brand X"></div>
+          <div class="field"><label for="ckDateCurrent" data-i18n="ckDateCur">Current capture — taken on</label>
+            <input type="date" id="ckDateCurrent" data-testid="ck-date-current"></div>
+          <div class="field"><label for="ckDatePrevious" data-i18n="ckDatePrev">Previous capture — taken on</label>
+            <input type="date" id="ckDatePrevious" data-testid="ck-date-previous"></div>
+        </div>
+      </div>
+
       <p class="hint" style="margin-bottom:.7rem" data-i18n="ingBucketHint">Put each screenshot in the period it was taken for. The same image cannot be added twice, and a value that would overwrite something already in the audit is marked before you apply.</p>
 
       <div class="shot-buckets">
@@ -1196,7 +1224,14 @@ const I18N = {
     ingPasteHint:"تسمية واحدة في كل سطر وقيمتها في السطر نفسه أو التالي. تعمل مع التسميات الإنجليزية والعربية واختصارات 1.3M / 45K والأرقام العربية.",
     ingFootNote:"لا يُكتب شيء في التدقيق حتى تضغط تطبيق.", ingCancel:"إلغاء",
     ingCurShots:"الفترة الحالية", ingPrevShots:"الفترة السابقة",
-    ingBucketHint:"ضع كل لقطة في الفترة التي تخصها. لا يمكن إضافة الصورة نفسها مرتين، وأي قيمة ستستبدل رقماً موجوداً في التدقيق تُعلَّم قبل التطبيق."
+    ingBucketHint:"ضع كل لقطة في الفترة التي تخصها. لا يمكن إضافة الصورة نفسها مرتين، وأي قيمة ستستبدل رقماً موجوداً في التدقيق تُعلَّم قبل التطبيق.",
+    ckWho:"لقطات شاشة لِـ", ckModeMy:"حسابي (Insights)", ckModeComp:"ملف عام لمنافس",
+    ckCompetitor:"المنافس", ckNewName:"اسم المنافس الجديد",
+    ckDateCur:"الالتقاط الحالي — بتاريخ", ckDatePrev:"الالتقاط السابق — بتاريخ",
+    ckH1:"أنت من يلتقط الصور بنفسك من الملفات العامة.",
+    ckH2:"الجمع الآلي (scraping) من إنستغرام/فيسبوك يخالف شروط استخدام Meta ويعرّض الحسابات للحظر — هذه الأداة لا تجمع آلياً ولن تفعل.",
+    ckH3:"المرئي علناً ويُربط هنا: عدد المتابعين، إجمالي المنشورات التاريخي، وإعجابات وتعليقات المنشورات الظاهرة.",
+    ckH4:"غير علني ولا يُقدَّر هنا أبداً: الوصول، الظهور، المشاهدات، الحفظ، المشاركات، مقاييس القصص، وديموغرافيا الجمهور. المتتبعات المدفوعة من طرف ثالث هي الطريق الوحيد لتلك."
   }
 };
 /* industry option labels (value → AR) */
@@ -2997,6 +3032,7 @@ function renderCalc(){
       <p style="font-size:.85rem;color:var(--ink-dim)">${F("Competitor values are manual captures from PUBLIC profiles. A capture without its date is listed but never compared — every compared value carries \"captured on DATE\". Growth uses two dated captures; windows differing from the audit period by more than 3 days (a tolerance constant set in this tool) are flagged \"≠ days\".","قيم المنافسين التقاطات يدوية من الملفات العامة. الالتقاط بلا تاريخ يُعرض ولا يُقارن أبداً — كل قيمة مقارَنة تحمل تاريخها. النمو يتطلب التقاطين مؤرخين؛ والنوافذ المختلفة عن فترة التدقيق بأكثر من 3 أيام (ثابت استرشادي في الأداة) تُعلَّم «≠ أيام».")}</p>
       <div class="rec-evidence" style="direction:ltr;text-align:left">visible eng/post = (likes + comments) ÷ sampled posts · follower share = followers ÷ Σ followers · est. engagement share = (eng/post × posts) ÷ Σ(eng/post × posts)</div>
       <p style="font-size:.85rem;color:var(--ink-dim)">${F("Comparisons only on metrics both sides actually have — the client row uses the same likes+comments basis (never total engagements), and any account missing an input is excluded from that share and named. Reach, impressions, saves and story metrics are not publicly visible and are never estimated.","المقارنة فقط على مقاييس متوفرة للطرفين — صف العميل بأساس الإعجابات+التعليقات نفسه (لا إجمالي التفاعلات)، وأي حساب ناقص المدخلات يُستبعد من تلك الحصة ويُسمّى. الوصول والظهور والحفظ ومقاييس القصص غير مرئية علناً ولا تُقدَّر أبداً.")}</p>
+      <p style="font-size:.85rem;color:var(--ink-dim)">${F("Capture kit: screenshots you take of a public profile can be read by the same in-browser OCR (Data wizard → Screenshots → \"A competitor's public profile\") through the same review-and-confirm table. Follower counts map directly; the profile header's ALL-TIME post count stages as RISKY and unchecked, because the benchmark needs posts inside the audit period; per-post likes/comments are summed across the post screenshots you supply. Automated scraping violates Meta's Terms of Service — this tool does not and will not scrape.","عدة الالتقاط: لقطات تلتقطها لملف عام يقرأها التعرف الضوئي نفسه داخل المتصفح (معالج البيانات ← لقطات ← «ملف عام لمنافس») عبر جدول المراجعة نفسه. عدد المتابعين يُربط مباشرة؛ عدّاد المنشورات التاريخي في رأس الملف يُدرَج RISKY وغير محدد لأن المقارنة تتطلب منشورات فترة التدقيق؛ وإعجابات وتعليقات المنشورات تُجمع من لقطات المنشورات التي توفرها. الجمع الآلي يخالف شروط Meta — هذه الأداة لا تجمع آلياً ولن تفعل.")}</p>
     </div>`;
 }
 
@@ -3670,6 +3706,119 @@ function labelSourceOk(line){
   return !keep.some(looksNumeric);
 }
 
+/* ---------- competitor capture kit (roadmap item 5) ----------
+   Maps OCR text from screenshots the user took of a PUBLIC profile:
+   the profile header (posts · followers · following) and individual
+   post screens ("N likes" / "Liked by X and N others" / "View all N
+   comments"). No scraping — the user supplies the images. Only
+   publicly visible numbers are mapped; nothing else is estimated. */
+const CK_FIELD_LABEL={
+  followers:  ()=>L("Followers (profile header)","المتابعون (رأس الملف)"),
+  posts:      ()=>L("Posts — all-time total (profile header)","المنشورات — الإجمالي التاريخي (رأس الملف)"),
+  sample_posts:  ()=>L("Sampled posts","منشورات في العينة"),
+  likes_total:   ()=>L("Likes total (sampled posts)","إجمالي الإعجابات (العينة)"),
+  comments_total:()=>L("Comments total (sampled posts)","إجمالي التعليقات (العينة)")
+};
+function ckHeaderPairs(text){
+  /* returns {followers,posts,following} as parseNum results (or null) from one file's text,
+     handling label-after-value ("1.2M followers"), value-above-label lines, and Arabic */
+  const t=latinDigits(text);
+  const out={followers:null,posts:null,following:null};
+  const LBL={followers:/^(followers?|متابع(ون|ين)?)$/i,
+             posts:/^(posts?|منشور(ات)?)$/i,
+             following:/^(following|يتابع)$/i};
+  const put=(k,numStr)=>{ if(out[k]) return; const n=parseNum(numStr); if(n&&!n.pct&&n.v>=0) out[k]=n; };
+  /* inline pairs anywhere in the text */
+  const re=/([\d.,٫٬]+(?:\s*[KMB])?)\s+(followers?|following|posts?|متابعون|متابعين|منشورات|يتابع)/gi;
+  let m;
+  while((m=re.exec(t))){
+    const lab=m[2].toLowerCase();
+    if(/^follower|^متابع/.test(lab)) put("followers",m[1]);
+    else if(/^post|^منشور/.test(lab)) put("posts",m[1]);
+    else put("following",m[1]);
+  }
+  /* value-above-label (mobile profile header prints the number above the word) */
+  const lines=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  for(let i=0;i<lines.length-1;i++){
+    const n=parseNum(lines[i]);
+    if(!n||n.pct) continue;
+    Object.keys(LBL).forEach(k=>{ if(LBL[k].test(lines[i+1])) put(k,lines[i]); });
+  }
+  return out;
+}
+function ckPostNumbers(text){
+  /* one post screenshot → {likes:{v,approx,ev}|null, comments:{...}|null} */
+  const t=latinDigits(text);
+  const out={likes:null,comments:null};
+  let m=t.match(/liked by\s+\S+.{0,40}?\band\s+([\d.,]+(?:\s*[KMB])?)\s+others/i);
+  if(m){ const n=parseNum(m[1]); if(n) out.likes={v:n.v+1,approx:true,ev:m[0].trim(),
+    note:L("“and N others” + 1 named liker — the exact total is not shown","«وN آخرون» + مُعجب واحد مُسمّى — الإجمالي الدقيق غير معروض")}; }
+  if(!out.likes){
+    m=t.match(/([\d.,٫٬]+(?:\s*[KMB])?)\s+(likes?|إعجاب(ات)?)\b/i);
+    if(m){ const n=parseNum(m[1]); if(n) out.likes={v:n.v,approx:!!n.approx,ev:m[0].trim(),
+      note:n.approx?L("platform-rounded shorthand","اختصار مقرّب من المنصة"):""}; }
+  }
+  m=t.match(/view all\s+([\d.,]+(?:\s*[KMB])?)\s+comments?/i)||
+    t.match(/([\d.,٫٬]+(?:\s*[KMB])?)\s+(comments?|تعليق(ات)?)\b/i);
+  if(m){ const n=parseNum(m[1]); if(n) out.comments={v:n.v,approx:true,ev:m[0].trim(),
+    note:L("Instagram's visible comment count can exclude some replies","عدّاد التعليقات الظاهر قد لا يشمل بعض الردود")}; }
+  return out;
+}
+function ingestCompetitorShots(files,opts){
+  opts=opts||{};
+  const bucket=opts.bucket||"current", platform=opts.platform||"instagram";
+  const base={platform,period:bucket,unit:"count",
+              compId:opts.compId||null,compName:opts.compName||"",capturedAt:opts.capturedAt||""};
+  const findings=[],unmapped=[],notes=[];
+  const likesF=[],commentsF=[],postFiles=[];
+  files.forEach(f=>{
+    const hdr=ckHeaderPairs(f.text||"");
+    if(hdr.followers)
+      findings.push(mkFinding(Object.assign({},base,{
+        target:{type:"comp",key:"followers"},srcLabel:CK_FIELD_LABEL.followers(),
+        value:hdr.followers.v,flag:hdr.followers.approx?"approx":null,
+        note:hdr.followers.approx?L("platform-rounded shorthand (e.g. 1.2M) — edit to the exact count if the profile shows one","اختصار مقرّب (مثل 1.2M) — عدّله إلى الرقم الدقيق إن ظهر"):"",
+        evidence:`${f.name}: ${fmt(hdr.followers.v,0)} followers`})));
+    if(hdr.posts)
+      findings.push(mkFinding(Object.assign({},base,{
+        target:{type:"comp",key:"posts"},srcLabel:CK_FIELD_LABEL.posts(),
+        value:hdr.posts.v,flag:"risky",
+        note:L("The profile header counts ALL-TIME posts. The benchmark needs posts inside the audit period — count the grid for the period instead. Applying this as-is would corrupt the engagement-share estimate.","رأس الملف يعدّ منشورات كل الزمن. المقارنة تتطلب منشورات فترة التدقيق — عُدّ الشبكة للفترة بدلاً من ذلك. تطبيقها كما هي يفسد تقدير حصة التفاعل."),
+        evidence:`${f.name}: ${fmt(hdr.posts.v,0)} posts (all-time)`})));
+    if(hdr.following)
+      unmapped.push(`${f.name}: following ${fmt(hdr.following.v,0)} — ${L("no comparable field, not mapped","لا حقل مقابل، لم يُربط")}`);
+    const post=ckPostNumbers(f.text||"");
+    if(post.likes||post.comments){
+      postFiles.push(f.name);
+      if(post.likes) likesF.push({name:f.name,v:post.likes.v,approx:post.likes.approx,ev:post.likes.ev,note:post.likes.note});
+      if(post.comments) commentsF.push({name:f.name,v:post.comments.v,ev:post.comments.ev,note:post.comments.note});
+    }
+  });
+  if(postFiles.length){
+    const sample=postFiles.length;
+    findings.push(mkFinding(Object.assign({},base,{
+      target:{type:"comp",key:"sample_posts"},srcLabel:CK_FIELD_LABEL.sample_posts(),
+      value:sample,evidence:L(`${sample} screenshot(s) with post numbers: `,`${sample} لقطة بأرقام منشورات: `)+postFiles.join(", ")})));
+    const agg=(arr,key,label)=>{
+      if(!arr.length) return;
+      const total=arr.reduce((a,x)=>a+x.v,0);
+      const partial=arr.length<sample;
+      const anyApprox=arr.some(x=>x.approx);
+      findings.push(mkFinding(Object.assign({},base,{
+        target:{type:"comp",key},srcLabel:label,
+        value:total,
+        flag:partial?"risky":(anyApprox||key==="comments_total")?"approx":null,
+        note:partial
+          ? L(`visible on only ${arr.length} of ${sample} sampled posts (hidden on the rest) — the sum understates`,`ظاهر في ${arr.length} من ${sample} منشورات فقط — المجموع أقل من الواقع`)
+          : (arr.map(x=>x.note).filter(Boolean)[0]||""),
+        evidence:`Σ ${arr.length} ${L("post(s)","منشور")}: `+arr.map(x=>fmt(x.v,0)).join(" + ")})));
+    };
+    agg(likesF,"likes_total",CK_FIELD_LABEL.likes_total());
+    agg(commentsF,"comments_total",CK_FIELD_LABEL.comments_total());
+  }
+  return {findings,unmapped,notes};
+}
+
 function ingestInsightsText(text,opts){
   opts=opts||{};
   const platform=opts.platform||detectPlatformFromText(text);
@@ -3908,7 +4057,7 @@ function dedupeFindings(findings){
   });
   const groups={},order=[];
   ageOut.forEach(f=>{
-    const k=[f.platform,f.period,f.target.type,String(f.target.key).toLowerCase()].join("|");
+    const k=[f.platform,f.period,f.target.type,String(f.target.key).toLowerCase(),f.compId||""].join("|");
     if(!groups[k]){ groups[k]=[]; order.push(k); }
     groups[k].push(f);
   });
@@ -3957,7 +4106,9 @@ function dedupeFindings(findings){
      a Previous-period capture would silently overwrite the current split.
      Those rows are flagged and switched off rather than applied blindly. */
   out.forEach(f=>{
-    if(f.period==="previous"&&f.target.type!=="metric"&&f.target.type!=="format"&&f.flag!=="conflict"&&!f.adsPair){
+    /* competitor snapshots are stored per capture bucket, so a "previous"
+       reading has a real home — the audience-overwrite hazard does not apply */
+    if(f.period==="previous"&&f.target.type!=="metric"&&f.target.type!=="format"&&f.target.type!=="comp"&&f.flag!=="conflict"&&!f.adsPair){
       f.flag="risky"; f.include=false;
       f.note=L("Audience breakdowns are stored once per platform, not per period. Applying this previous-period reading would overwrite the current audience profile.",
                "توزيع الجمهور يُحفظ مرة واحدة لكل منصة وليس لكل فترة. تطبيق هذه القراءة من الفترة السابقة سيستبدل ملف الجمهور الحالي.");
@@ -3974,7 +4125,7 @@ function mergeAgeDuplicates(f){ return dedupeFindings(f); }
    ============================================================ */
 "use strict";
 
-const ING={files:[],lastMeta:null,busy:false};
+const ING={files:[],lastMeta:null,busy:false,shotMode:"my"};
 
 /* ---------- open / close / tabs ---------- */
 function openIngest(src){
@@ -3982,6 +4133,7 @@ function openIngest(src){
   ingSwitch(src||"shot");
   if(!dlg.open) dlg.showModal();
   ingSyncPeriodOptions();
+  try{ syncCompKit(); }catch(e){/* wired later in this script */}
 }
 function ingSwitch(src){
   $$("#ingestDialog .ing-tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.src===src)));
@@ -4093,6 +4245,20 @@ function renderThumbs(){
 
 async function runOCR(){
   if(!ING.files.length||ING.busy) return;
+  const mode=ING.shotMode||"my";
+  if(mode==="competitor"){
+    const sel=$("#ckComp").value;
+    if(!sel){ toast(L("Add or pick a competitor first.","أضف أو اختر منافساً أولاً.")); return; }
+    if(sel==="__new"&&!$("#ckNewName").value.trim()){
+      toast(L("Name the new competitor first.","سمِّ المنافس الجديد أولاً.")); return; }
+    for(const per of PERIODS){
+      if(bucketOf(per).length&&!$(per==="current"?"#ckDateCurrent":"#ckDatePrevious").value){
+        toast(L("Enter the capture date for the "+per+" bucket — undated captures are never compared.",
+                "أدخل تاريخ الالتقاط — الالتقاطات بلا تاريخ لا تُقارن أبداً."));
+        return;
+      }
+    }
+  }
   ING.busy=true; $("#btnRunOcr").disabled=true;
   const bar=$("#ocrBar"), fill=$("#ocrBar > i"), stat=$("#ocrStatus");
   bar.hidden=false; fill.style.width="0%";
@@ -4109,10 +4275,10 @@ async function runOCR(){
     }
     /* Each bucket is OCR'd and mapped on its own, so a Current capture can
        never contribute a value to the Previous period or the other way round. */
-    const texts={}; let done=0;
+    const texts={}, fileTexts={}; let done=0;
     for(const per of PERIODS){
       const mine=bucketOf(per);
-      texts[per]="";
+      texts[per]=""; fileTexts[per]=[];
       for(const f of mine){
         f.status="reading"; renderThumbs();
         done++;
@@ -4124,17 +4290,41 @@ async function runOCR(){
         f.text=(out&&out.data&&out.data.text)||"";
         f.status=f.text.trim()?"read ✓":"no text";
         texts[per]+="\n"+f.text;
+        fileTexts[per].push({name:f.name,text:f.text});
         renderThumbs();
       }
     }
     stat.textContent=L("Mapping values…","جارٍ ربط القيم…");
     const allText=PERIODS.map(p2=>texts[p2]).join("\n");
     const plat=$("#shotPlatform").value||detectPlatformFromText(allText);
+    let findings=[],unmapped=[],notes=[];
+    if(mode==="competitor"){
+      const selId=$("#ckComp").value;
+      const compObj=selId==="__new"
+        ? {id:null,name:$("#ckNewName").value.trim()}
+        : (S.competitors||[]).find(c=>c.id===selId)||{id:null,name:""};
+      stageReset(L("Competitor screenshots","لقطات ملف منافس"));
+      STAGE.raw=PERIODS.filter(p2=>texts[p2].trim())
+        .map(p2=>`===== ${p2.toUpperCase()} CAPTURE =====\n${texts[p2].trim()}`).join("\n\n");
+      STAGE.files=ING.files.map(f=>`${f.name} (${f.period})`);
+      PERIODS.forEach(per=>{
+        if(!fileTexts[per].length) return;
+        const r=ingestCompetitorShots(fileTexts[per],{platform:plat,bucket:per,
+          compId:compObj.id,compName:compObj.name,
+          capturedAt:$(per==="current"?"#ckDateCurrent":"#ckDatePrevious").value});
+        findings=findings.concat(r.findings);
+        unmapped=unmapped.concat(r.unmapped.map(u=>`[${per}] ${u}`));
+        notes=notes.concat(r.notes.filter(n2=>notes.indexOf(n2)<0));
+      });
+      STAGE.findings=dedupeFindings(findings);
+      STAGE.unmapped=unmapped; STAGE.notes=notes;
+      STAGE.notes.unshift("[ASSUMPTION] "+L(`Values were read by OCR from ${ING.files.length} screenshot(s) you took of the PUBLIC profile "${compObj.name}" (${PLATFORMS[plat].label}). Only publicly visible numbers are mapped — reach, impressions and story metrics are not estimated. Check every row against the image before applying.`,
+                                            `قُرئت القيم ضوئياً من ${ING.files.length} لقطة التقطتها للملف العام "${compObj.name}" (${PLATFORMS[plat].label}). تُربط الأرقام العلنية فقط — لا يُقدَّر الوصول أو الظهور أو مقاييس القصص. راجع كل صف قبل التطبيق.`));
+    }else{
     stageReset(L("Screenshots","لقطات الشاشة"));
     STAGE.raw=PERIODS.filter(p2=>texts[p2].trim())
       .map(p2=>`===== ${p2.toUpperCase()} =====\n${texts[p2].trim()}`).join("\n\n");
     STAGE.files=ING.files.map(f=>`${f.name} (${f.period})`);
-    let findings=[],unmapped=[],notes=[];
     PERIODS.forEach(per=>{
       if(!texts[per].trim()) return;
       const r=ingestInsightsText(texts[per],{platform:plat,period:per});
@@ -4147,6 +4337,7 @@ async function runOCR(){
     const counts=PERIODS.map(per=>`${bucketOf(per).length} ${per}`).join(" · ");
     STAGE.notes.unshift("[ASSUMPTION] "+L(`Values were read by OCR from ${ING.files.length} screenshot(s) (${counts}) and assigned to "${PLATFORMS[plat].label}". Check every row against the image before applying.`,
                                           `قُرئت القيم ضوئياً من ${ING.files.length} لقطة (${counts}) وأُسندت إلى "${PLATFORMS[plat].label}". راجع كل صف مقابل الصورة قبل التطبيق.`));
+    }
     renderReview();
     stat.textContent=L(`Done — ${STAGE.findings.length} value(s) staged for review.`,`تم — ${STAGE.findings.length} قيمة جاهزة للمراجعة.`);
   }catch(err){
@@ -4242,6 +4433,13 @@ function clearTargetOptCache(){ Object.keys(_targetOptCache).forEach(k=>delete _
 /* What the audit already holds for a staged row's target, so an import can
    never quietly replace a number the user entered or imported earlier. */
 function existingValue(f){
+  if(f.target.type==="comp"){
+    const c=(S.competitors||[]).find(x=>x.id===f.compId);
+    if(!c) return null;
+    const bag=f.period==="previous"?c.prev:c.cur;
+    const v=bag?bag[f.target.key]:undefined;
+    return v===undefined?null:v;
+  }
   const P=S.platforms[f.platform];
   if(!P) return null;
   if(f.target.type==="metric") return getMetric(f.platform,f.period,f.target.key);
@@ -4287,13 +4485,19 @@ function renderReview(){
       <td><b style="font-family:var(--font-body)">${esc(f.srcLabel)}</b>
           <div class="rv-ev">${esc(f.evidence)}</div>
           ${f.note?`<div class="rv-note">${esc(f.note)}</div>`:""}${existLine}</td>
-      <td><select data-rv="target" aria-label="${esc(L("maps to","يُربط بـ"))}">${targetOptions(f.platform)}</select>
+      ${f.target.type==="comp"
+        ? `<td><b style="font-family:var(--font-body)">${esc(CK_FIELD_LABEL[f.target.key]?CK_FIELD_LABEL[f.target.key]():f.target.key)}</b>
+             <div class="rv-note" data-testid="rv-comp">${esc(L("COMPETITOR","منافس"))}: ${esc(f.compName||"?")}</div></td>
+           <td>${esc(PLATFORMS[f.platform].label)}</td>
+           <td>${esc(f.period==="previous"?L("Previous capture","الالتقاط السابق"):L("Current capture","الالتقاط الحالي"))}
+             <div class="rv-note">${esc(f.capturedAt||"")}</div></td>`
+        : `<td><select data-rv="target" aria-label="${esc(L("maps to","يُربط بـ"))}">${targetOptions(f.platform)}</select>
           ${isLoc?`<input type="text" data-rv="name" value="${esc(f.target.key||"")}" placeholder="${esc(L("Place name","اسم المكان"))}" style="margin-top:.3rem" aria-label="${esc(L("Place name","اسم المكان"))}">`:""}</td>
       <td><select data-rv="platform" aria-label="${esc(L("platform","المنصة"))}">${Object.keys(PLATFORMS).map(p=>
             `<option value="${p}"${p===f.platform?" selected":""}>${esc(PLATFORMS[p].label)}</option>`).join("")}</select></td>
       <td><select data-rv="period" aria-label="${esc(L("period","الفترة"))}">
             <option value="current"${f.period==="current"?" selected":""}>${esc(L("Current","الحالية"))}</option>
-            <option value="previous"${f.period==="previous"?" selected":""}>${esc(L("Previous","السابقة"))}</option></select></td>
+            <option value="previous"${f.period==="previous"?" selected":""}>${esc(L("Previous","السابقة"))}</option></select></td>`}
       <td><input type="number" step="any" min="0" data-rv="value" value="${f.value}" aria-label="${esc(L("value","القيمة"))}">
           <span class="rv-unit">${f.unit==="pct"?"%":""}</span></td>
       <td>${flagChip}</td>
@@ -4324,19 +4528,24 @@ function renderReview(){
   box.querySelectorAll("tr[data-fid]").forEach(tr=>{
     const f=STAGE.findings.find(x=>x.id===tr.dataset.fid);
     const sel=tr.querySelector('[data-rv="target"]');
-    const want=f.target.type+":"+(f.target.type==="country"||f.target.type==="city"||f.target.type==="skip"?"":f.target.key);
-    sel.value=want;
-    if(sel.selectedIndex<0) sel.value="skip:";
+    /* competitor rows have fixed targets — no re-mapping selects to wire */
+    if(sel){
+      const want=f.target.type+":"+(f.target.type==="country"||f.target.type==="city"||f.target.type==="skip"?"":f.target.key);
+      sel.value=want;
+      if(sel.selectedIndex<0) sel.value="skip:";
+      sel.addEventListener("change",e=>{
+        const [t,k]=e.target.value.split(":");
+        f.target={type:t,key:k||""};
+        renderReview();
+      });
+    }
     tr.querySelector('[data-rv="inc"]').addEventListener("change",e=>{ f.include=e.target.checked; syncSelectAll(); updateApplyCount(); });
-    tr.querySelector('[data-rv="target"]').addEventListener("change",e=>{
-      const [t,k]=e.target.value.split(":");
-      f.target={type:t,key:k||""};
-      renderReview();
-    });
     const nm=tr.querySelector('[data-rv="name"]');
     if(nm) nm.addEventListener("input",e=>{ f.target.key=e.target.value; });
-    tr.querySelector('[data-rv="platform"]').addEventListener("change",e=>{ f.platform=e.target.value; renderReview(); });
-    tr.querySelector('[data-rv="period"]').addEventListener("change",e=>{ f.period=e.target.value; });
+    const pl=tr.querySelector('[data-rv="platform"]');
+    if(pl) pl.addEventListener("change",e=>{ f.platform=e.target.value; renderReview(); });
+    const pe=tr.querySelector('[data-rv="period"]');
+    if(pe) pe.addEventListener("change",e=>{ f.period=e.target.value; });
     tr.querySelector('[data-rv="value"]').addEventListener("input",e=>{
       const n=parseFloat(e.target.value);
       f.value=Number.isFinite(n)?n:0;
@@ -4372,12 +4581,31 @@ function updateApplyCount(){
 function applyStaged(){
   const sel=STAGE.findings.filter(f=>f.include&&f.target.type!=="skip");
   if(!sel.length) return;
-  let n=0; const touched={};
+  let n=0; const touched={}; const newComps={};
   sel.forEach(f=>{
     const p=f.platform;
     if(!S.platforms[p]) return;
     if(!Number.isFinite(f.value)) return;
     if(f.unit==="pct"&&(f.value<0||f.value>100)) return;
+    if(f.target.type==="comp"){
+      S.competitors=S.competitors||[];
+      let c=S.competitors.find(x=>x.id===f.compId);
+      if(!c&&f.compName){
+        c=newComps[f.compName];
+        if(!c){
+          c={id:"c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+             name:f.compName,handle:"",platform:p,cur:{},prev:{}};
+          S.competitors.push(c); newComps[f.compName]=c;
+        }
+      }
+      if(!c) return;
+      const bk=f.period==="previous"?"prev":"cur";
+      c[bk]=c[bk]||{};
+      c[bk][f.target.key]=f.value;
+      if(f.capturedAt) c[bk].capturedAt=f.capturedAt;
+      touched[p]=(touched[p]||0)+1; n++;
+      return; // competitor data never force-enables the platform
+    }
     if(f.target.type==="metric"){
       if(!metricsFor(p).some(m=>m.key===f.target.key)) return;
       setMetric(p,f.period,f.target.key,f.value);
@@ -4469,6 +4697,36 @@ $("#btnShotClear").addEventListener("click",()=>{
   ING.files.forEach(f=>{ try{ URL.revokeObjectURL(f.thumb); }catch(e){} });
   ING.files=[]; renderThumbs(); $("#ingReview").innerHTML=""; $("#ocrStatus").textContent=""; stageReset("");
 });
+
+/* competitor capture kit — mode toggle & controls */
+function syncCompKit(){
+  const comp=ING.shotMode==="competitor";
+  $("#shotModeMy").setAttribute("aria-pressed",String(!comp));
+  $("#shotModeComp").setAttribute("aria-pressed",String(comp));
+  $("#shotModeMy").classList.toggle("btn-primary",!comp);
+  $("#shotModeComp").classList.toggle("btn-primary",comp);
+  $("#compKit").hidden=!comp;
+  const hc=document.querySelector('[data-testid="bucket-current"] .bk-head b');
+  const hp=document.querySelector('[data-testid="bucket-previous"] .bk-head b');
+  if(hc) hc.textContent=comp?L("Current capture","الالتقاط الحالي"):t("ingCurShots","Current period");
+  if(hp) hp.textContent=comp?L("Previous capture","الالتقاط السابق"):t("ingPrevShots","Previous period");
+  const rc=$("#bkRangeCurrent"), rp=$("#bkRangePrevious");
+  if(rc) rc.hidden=comp; if(rp) rp.hidden=comp;
+  if(comp){
+    const plat=$("#shotPlatform").value;
+    const prev=$("#ckComp").value;
+    const opts=(S.competitors||[]).filter(c=>c.platform===plat)
+      .map(c=>`<option value="${c.id}">${esc(c.name||L("Unnamed","بدون اسم"))}</option>`).join("");
+    $("#ckComp").innerHTML=opts+`<option value="__new">＋ ${esc(L("New competitor…","منافس جديد…"))}</option>`;
+    if(prev&&[...$("#ckComp").options].some(o=>o.value===prev)) $("#ckComp").value=prev;
+    $("#ckNewWrap").hidden=$("#ckComp").value!=="__new";
+    if(!$("#ckDateCurrent").value) $("#ckDateCurrent").value=new Date().toISOString().slice(0,10);
+  }
+}
+$("#shotModeMy").addEventListener("click",()=>{ ING.shotMode="my"; syncCompKit(); });
+$("#shotModeComp").addEventListener("click",()=>{ ING.shotMode="competitor"; syncCompKit(); });
+$("#ckComp").addEventListener("change",()=>{ $("#ckNewWrap").hidden=$("#ckComp").value!=="__new"; });
+$("#shotPlatform").addEventListener("change",()=>{ if(ING.shotMode==="competitor") syncCompKit(); });
 
 /* meta pane */
 const mdz=$("#metaDrop");
