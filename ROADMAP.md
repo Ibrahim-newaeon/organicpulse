@@ -35,7 +35,7 @@ quantitative rate when present, falling back to the qualitative answer when not.
 
 - Details: `docs/community_module.md`.
 
-## 4 · Competitor benchmark tab
+## 4 · Competitor benchmark tab — ✅ shipped 2026-08-28
 
 Side-by-side comparison of the client vs 2–3 competitor accounts: followers, growth, posting
 cadence, per-post engagement where observable, share-of-voice within the tracked set.
@@ -43,6 +43,8 @@ cadence, per-post engagement where observable, share-of-voice within the tracked
 - Manual entry first (see item 5 for how the data is captured).
 - Every competitor value carries a "captured from public profile on DATE" provenance stamp.
 - Comparisons only on metrics both sides actually have — no proxy filling.
+- Shipped as a Data-step entry card + per-platform Report card (six-step structure preserved).
+  Details: `docs/competitor_benchmark.md`.
 
 ## 5 · Competitor capture kit — what's collectable **without** any API
 

@@ -2,6 +2,23 @@
 
 Full engineering notes for each milestone live in `docs/`.
 
+## 2026-08-28 (2) — Competitor benchmark (roadmap item 4)
+
+- **Competitors entry card** in step 2: per-competitor accordion (name, handle, platform) with
+  two dated captures — followers, posts in the audit period, sampled posts, likes/comments
+  totals. Only publicly visible quantities have fields; reach/impressions/saves/stories
+  deliberately have none.
+- **Per-platform Report card**: client row (highlighted, same likes+comments basis — never
+  total engagements) vs competitors: followers, exact follower share, growth (two dated
+  captures; windows ≠ audit period ±3 days flagged), posts, visible eng/post (sample size
+  shown), estimated engagement share with a printed `[ASSUMPTION]`.
+- **Provenance enforced**: every compared value carries "captured from public profile on DATE";
+  a dated stamp missing → values listed but never compared. Missing inputs → "—" and named
+  exclusion from shares — no proxy filling anywhere.
+- New `competitor_growth_gap` P2 rule (fires only on unflagged windows, evidence quotes both
+  growths + capture dates). Calculations tab §8. Six-step structure unchanged.
+- Suite: **550 passing** (21 new tests × desktop + Pixel 7). Details: `docs/competitor_benchmark.md`.
+
 ## 2026-08-28 — Community management module (roadmap item 3)
 
 - Quantified community metrics, manual entry per period: **DMs received**, **responses sent**,

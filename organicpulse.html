@@ -976,6 +976,73 @@ function formatStats(p,period){
 }
 function metricDef(key){ return METRICS.find(m=>m.key===key); }
 
+/* ---------- competitor benchmark (roadmap item 4) ----------
+   Manual captures from PUBLIC profiles only. Every compared value carries its
+   capture date; a capture holding data but no date is listed, never compared.
+   Visible engagement = likes + comments (the only per-post numbers a public
+   profile shows) — the client row uses the SAME basis, never total engagements. */
+function compDays(c){
+  if(!c||!c.cur||!c.cur.capturedAt||!c.prev||!c.prev.capturedAt) return null;
+  const ms=new Date(c.cur.capturedAt)-new Date(c.prev.capturedAt);
+  return ms>0?Math.round(ms/86400000):null;
+}
+function compEngPerPost(s){
+  if(!s) return null;
+  const li=num(s.likes_total), co=num(s.comments_total), n=num(s.sample_posts);
+  return (li!==null&&co!==null&&n)?(li+co)/n:null;
+}
+/* growth windows are flagged when they differ from the audit period by more
+   than 3 days — a tolerance constant set in this tool, documented in step 4 */
+const COMP_DAYS_TOLERANCE=3;
+function compStats(platform){
+  const comps=(S.competitors||[]).filter(c=>c.platform===platform);
+  if(!comps.length) return {has:false,rows:[],excludedFol:[],excludedEng:[]};
+  const rows=[];
+  const li=getMetric(platform,"current","likes"), co=getMetric(platform,"current","comments"),
+        po=getMetric(platform,"current","posts");
+  rows.push({
+    id:"client", isClient:true, name:S.meta.client||L("Client","العميل"), handle:"",
+    followers:getMetric(platform,"current","followers"),
+    growth:growthRate(platform), growthFlag:false, growthDays:periodDays("current"),
+    posts:po,
+    engPerPost:(li!==null&&co!==null&&po)?(li+co)/po:null,
+    capturedAt:null, prevCapturedAt:null, missingDate:false, sample:null
+  });
+  const clientDays=periodDays("current");
+  comps.forEach(c=>{
+    const cur=c.cur||{}, prev=c.prev||{};
+    const hasCurData=["followers","posts","sample_posts","likes_total","comments_total"].some(k=>num(cur[k])!==null);
+    const dated=!!cur.capturedAt;
+    const fol=dated?num(cur.followers):null;
+    const pFol=prev.capturedAt?num(prev.followers):null;
+    const days=compDays(c);
+    rows.push({
+      id:c.id, isClient:false, name:c.name||L("Unnamed","بدون اسم"), handle:c.handle||"",
+      followers:fol,
+      growth:(fol!==null&&pFol)?(fol-pFol)/pFol*100:null,
+      growthFlag:days!==null&&clientDays!==null&&Math.abs(days-clientDays)>COMP_DAYS_TOLERANCE,
+      growthDays:days,
+      posts:dated?num(cur.posts):null,
+      engPerPost:dated?compEngPerPost(cur):null,
+      sample:dated?num(cur.sample_posts):null,
+      capturedAt:cur.capturedAt||null, prevCapturedAt:prev.capturedAt||null,
+      missingDate:hasCurData&&!dated
+    });
+  });
+  const withFol=rows.filter(r=>r.followers!==null);
+  const folTot=withFol.reduce((a,r)=>a+r.followers,0);
+  rows.forEach(r=>{ r.folShare=(r.followers!==null&&folTot>0&&withFol.length>1)?r.followers/folTot*100:null; });
+  const withEng=rows.filter(r=>r.engPerPost!==null&&r.posts);
+  const engTot=withEng.reduce((a,r)=>a+r.engPerPost*r.posts,0);
+  rows.forEach(r=>{
+    r.engEst=(r.engPerPost!==null&&r.posts)?r.engPerPost*r.posts:null;
+    r.engShare=(r.engEst!==null&&engTot>0&&withEng.length>1)?r.engEst/engTot*100:null;
+  });
+  return {has:true,rows,
+    excludedFol:rows.filter(r=>r.followers===null).map(r=>r.name),
+    excludedEng:rows.filter(r=>r.engPerPost===null||!r.posts).map(r=>r.name)};
+}
+
 /* ---------- qualitative checklist (0=missing,1=partial,2=good) ---------- */
 const QUAL_ITEMS = [
   {key:"bio_complete",label:"Profile/bio complete (link, contact, category)",ar:"اكتمال الملف الشخصي (رابط، تواصل، فئة)",pillar:"content"},
@@ -1163,7 +1230,8 @@ function defaultState(){
     weights:Object.fromEntries(PILLARS.map(pl=>[pl.key,pl.defaultWeight])),
     brand:{logo:"",primary:"",secondary:""},
     importLog:[],
-    archive:[]
+    archive:[],
+    competitors:[]   // [{id,name,handle,platform,cur:{capturedAt,followers,posts,sample_posts,likes_total,comments_total},prev:{...}}]
   };
 }
 let S = defaultState();
@@ -1182,6 +1250,11 @@ function hydrate(parsed){
   next.benchPreset=parsed.benchPreset===undefined?"":parsed.benchPreset;
   next.importLog=Array.isArray(parsed.importLog)?parsed.importLog:[];
   next.archive=Array.isArray(parsed.archive)?parsed.archive:[];
+  next.competitors=(Array.isArray(parsed.competitors)?parsed.competitors:[])
+    .filter(c=>c&&typeof c==="object"&&c.id)
+    .map(c=>({id:String(c.id),name:String(c.name||""),handle:String(c.handle||""),
+      platform:PLATFORMS[c.platform]?c.platform:"instagram",
+      cur:Object.assign({},c.cur||{}),prev:Object.assign({},c.prev||{})}));
   next.platforms={};
   Object.keys(PLATFORMS).forEach(p=>{
     const src=(parsed.platforms&&parsed.platforms[p])||{};
@@ -1656,6 +1729,18 @@ const REC_RULES = [
               `معدل الاستجابة = ${pctFmt(rr)} مقابل الهدف ${pctFmt(B.response_rate)}: ${fmt(getMetric(p,"current","responses_sent"),0)} رداً على ${fmt(c.derived.inbound,0)} تفاعلاً وارداً (${fmt(getMetric(p,"current","comments"),0)} تعليقاً + ${fmt(getMetric(p,"current","dms_received"),0)} رسالة).`); },
    action:()=>L("Set a response-time SLA in business hours, add saved replies for the top 10 questions, route DMs to a named owner, and block two daily inbox slots.",
                 "حدد اتفاقية زمن استجابة في أوقات العمل، أضف ردوداً محفوظة لأكثر 10 أسئلة تكراراً، وعيّن مسؤولاً محدداً للرسائل، واحجز فترتين يوميتين لصندوق الوارد.")},
+  {id:"competitor_growth_gap",title:()=>L("A tracked competitor is growing faster","منافس متتبع ينمو أسرع"),priority:"P2",effort:"M",
+   impact:()=>L("Their public grid shows what the shared audience currently rewards","شبكتهم العامة تُظهر ما يكافئه الجمهور المشترك حالياً"),
+   cond:()=>L("Competitor follower growth > client growth over a comparable window (both computed from dated captures)","نمو متابعي منافس أعلى من نمو العميل خلال نافذة قابلة للمقارنة (كلاهما من التقاطات مؤرخة)"),
+   test:(p,c)=>{ const st=compStats(p); if(!st.has) return null;
+     const cl=st.rows.find(r=>r.isClient); if(!cl||cl.growth===null) return null;
+     const best=st.rows.filter(r=>!r.isClient&&r.growth!==null&&!r.growthFlag)
+                       .sort((a,b)=>b.growth-a.growth)[0];
+     if(!best||best.growth<=cl.growth) return null;
+     return L(`${best.name}: ${fmt(best.growth)}% follower growth (captures ${best.prevCapturedAt} → ${best.capturedAt}) vs client ${fmt(cl.growth)}% — both from entered, dated values.`,
+              `${best.name}: نمو متابعين ${fmt(best.growth)}% (التقاطات ${best.prevCapturedAt} ← ${best.capturedAt}) مقابل العميل ${fmt(cl.growth)}% — كلاهما من قيم مُدخلة ومؤرخة.`); },
+   action:()=>L("Review that competitor's public grid for the window: posting cadence, formats, hooks and collaborations; test the transferable patterns, one variable at a time.",
+                "راجع الشبكة العامة لذلك المنافس خلال الفترة: وتيرة النشر، الصيغ، الخطّافات والتعاونات؛ وجرّب الأنماط القابلة للنقل متغيّراً واحداً في كل مرة.")},
   {id:"qual_response",title:()=>L("Community management gap","فجوة في إدارة المجتمع"),priority:"P1",effort:"S",
    impact:()=>L("Response speed drives repeat engagement and trust","سرعة الرد تعزز تكرار التفاعل والثقة"),
    cond:()=>L("Qualitative: response time = Missing (only when no quantitative rate exists)","نوعي: سرعة الرد = غير متوفرة (فقط عند غياب المعدل الكمي)"),
@@ -1961,6 +2046,120 @@ function renderData(){
         A[kind][inp.dataset.audF]=inp.value.trim()===""?null:parseFloat(inp.value);
       }
       saveLocal();
+    });
+  });
+  renderCompetitorEntry(wrap);
+}
+
+/* ---------- competitor entry (step 2) ---------- */
+const COMP_FIELDS=[
+  {key:"capturedAt",label:"Captured on (date)",ar:"تاريخ الالتقاط",type:"date"},
+  {key:"followers",label:"Followers",ar:"المتابعون",type:"number"},
+  {key:"posts",label:"Posts in the audit period",ar:"منشورات خلال فترة التدقيق",type:"number"},
+  {key:"sample_posts",label:"Sampled posts",ar:"منشورات في العينة",type:"number",hint:"how many recent posts you counted likes/comments on"},
+  {key:"likes_total",label:"Likes total (sampled posts)",ar:"إجمالي الإعجابات (العينة)",type:"number"},
+  {key:"comments_total",label:"Comments total (sampled posts)",ar:"إجمالي التعليقات (العينة)",type:"number"}
+];
+function compAccordionHTML(c){
+  const info=PLATFORMS[c.platform];
+  const empty=!c.name&&!Object.keys(c.cur||{}).length&&!Object.keys(c.prev||{}).length;
+  const platOpts=Object.keys(PLATFORMS)
+    .filter(p=>S.platforms[p].enabled||p===c.platform)
+    .map(p=>`<option value="${p}" ${p===c.platform?"selected":""}>${esc(PLATFORMS[p].label)}</option>`).join("");
+  let rows="";
+  COMP_FIELDS.forEach(f=>{
+    rows+=`<div class="metric-row">
+      <div class="m-label"><b>${esc(L(f.label,f.ar))}</b>${f.hint?esc(L(f.hint,"عدد المنشورات الحديثة التي عددت إعجاباتها وتعليقاتها")):""}</div>
+      <input type="${f.type}" ${f.type==="number"?'inputmode="decimal" min="0" step="any"':""}
+        data-comp="${c.id}" data-per="cur" data-cf="${f.key}" data-testid="comp-${c.id}-${f.key}-cur"
+        value="${esc(String((c.cur||{})[f.key]??""))}" aria-label="${esc(L(f.label,f.ar))} ${L("current","الحالية")}">
+      <input type="${f.type}" ${f.type==="number"?'inputmode="decimal" min="0" step="any"':""}
+        data-comp="${c.id}" data-per="prev" data-cf="${f.key}" data-testid="comp-${c.id}-${f.key}-prev"
+        value="${esc(String((c.prev||{})[f.key]??""))}" aria-label="${esc(L(f.label,f.ar))} ${L("previous","السابقة")}">
+    </div>`;
+  });
+  return `<div class="accordion${empty?" open":""}" data-comp-acc="${c.id}">
+    <button class="acc-head" data-testid="comp-acc-${c.id}" aria-expanded="${empty}">
+      <span aria-hidden="true">${info?info.icon:"🆚"}</span>
+      <span data-comp-head="${c.id}">${esc(c.name||L("New competitor","منافس جديد"))}</span>
+      <span class="acc-status">${esc(info?info.label:"")}</span>
+      <span class="chev" aria-hidden="true">▼</span>
+    </button>
+    <div class="acc-body">
+      <div class="metric-row">
+        <div class="m-label"><b>${esc(L("Name","الاسم"))}</b></div>
+        <input type="text" data-comp="${c.id}" data-cmeta="name" data-testid="comp-name-${c.id}"
+          value="${esc(c.name||"")}" aria-label="${esc(L("Competitor name","اسم المنافس"))}">
+        <input type="text" data-comp="${c.id}" data-cmeta="handle" data-testid="comp-handle-${c.id}"
+          value="${esc(c.handle||"")}" placeholder="@handle" aria-label="${esc(L("Handle (optional)","المعرّف (اختياري)"))}">
+      </div>
+      <div class="metric-row">
+        <div class="m-label"><b>${esc(L("Platform","المنصة"))}</b></div>
+        <select data-comp="${c.id}" data-cmeta="platform" data-testid="comp-platform-${c.id}"
+          aria-label="${esc(L("Competitor platform","منصة المنافس"))}">${platOpts}</select>
+        <span></span>
+      </div>
+      <div class="col-heads"><span>${esc(L("Field","الحقل"))}</span><span>${esc(L("Current capture","الالتقاط الحالي"))}</span><span>${esc(L("Previous capture","الالتقاط السابق"))}</span></div>
+      ${rows}
+      <button class="btn btn-sm" data-comp-del="${c.id}" data-testid="btn-comp-del-${c.id}" style="margin-top:.6rem">🗑 ${esc(L("Remove","إزالة"))}</button>
+    </div>
+  </div>`;
+}
+function renderCompetitorEntry(wrap){
+  const card=document.createElement("div"); card.className="card"; card.dataset.testid="comp-entry";
+  let inner=`<h3>🆚 ${esc(L("Competitors (optional)","المنافسون (اختياري)"))}</h3>
+    <p class="hint" style="margin-bottom:.7rem">${esc(L("Manual captures from public profiles — record the date you looked, and enter only what the profile actually shows. Reach, impressions, saves and story metrics are not publicly visible, so they have no fields here on purpose.","التقاطات يدوية من الملفات العامة — سجّل تاريخ الاطلاع وأدخل فقط ما يظهره الملف فعلاً. الوصول والظهور والحفظ ومقاييس القصص غير مرئية علناً، لذا لا حقول لها هنا عمداً."))}</p>`;
+  (S.competitors||[]).forEach(c=>{ inner+=compAccordionHTML(c); });
+  inner+=`<button class="btn" id="btnCompAdd" data-testid="btn-comp-add" style="margin-top:.6rem">＋ ${esc(L("Add competitor","إضافة منافس"))}</button>`;
+  card.innerHTML=inner;
+  wrap.appendChild(card);
+
+  card.querySelectorAll(".acc-head[data-testid^='comp-acc-']").forEach(head=>{
+    head.addEventListener("click",()=>{
+      const acc=head.closest(".accordion");
+      acc.classList.toggle("open");
+      head.setAttribute("aria-expanded",String(acc.classList.contains("open")));
+    });
+  });
+  const byId=id=>(S.competitors||[]).find(c=>c.id===id);
+  card.querySelectorAll("input[data-cmeta],select[data-cmeta]").forEach(inp=>{
+    inp.addEventListener("input",()=>{
+      const c=byId(inp.dataset.comp); if(!c) return;
+      c[inp.dataset.cmeta]=inp.value;
+      if(inp.dataset.cmeta==="name"){
+        const head=card.querySelector(`[data-comp-head="${c.id}"]`);
+        if(head) head.textContent=inp.value||L("New competitor","منافس جديد");
+      }
+      saveLocal();
+    });
+  });
+  card.querySelectorAll("input[data-cf]").forEach(inp=>{
+    inp.addEventListener("input",()=>{
+      const c=byId(inp.dataset.comp); if(!c) return;
+      if(inp.type==="number"&&!validateInput(inp,"count")) return;
+      const bag=c[inp.dataset.per]=c[inp.dataset.per]||{};
+      const v=inp.value.trim();
+      if(v==="") delete bag[inp.dataset.cf];
+      else bag[inp.dataset.cf]=inp.type==="number"?parseFloat(v):v;
+      saveLocal();
+    });
+  });
+  const add=card.querySelector("#btnCompAdd");
+  if(add) add.addEventListener("click",()=>{
+    S.competitors=S.competitors||[];
+    S.competitors.push({id:"c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      name:"",handle:"",platform:enabledPlatforms()[0]||"instagram",cur:{},prev:{}});
+    saveLocal(); renderData();
+  });
+  card.querySelectorAll("[data-comp-del]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      if(btn.dataset.armed!=="1"){
+        btn.dataset.armed="1"; btn.textContent=L("Sure?","متأكد؟");
+        setTimeout(()=>{ if(btn.isConnected){ btn.dataset.armed=""; btn.textContent="🗑 "+L("Remove","إزالة"); } },2600);
+        return;
+      }
+      S.competitors=(S.competitors||[]).filter(c=>c.id!==btn.dataset.compDel);
+      saveLocal(); renderData();
     });
   });
 }
@@ -2359,6 +2558,47 @@ function wireExecGen(){
     buildExecSummary("en").text+"\n\n"+"—".repeat(24)+"\n\n"+buildExecSummary("ar").text));
 }
 
+function competitorReportHTML(p){
+  const st=compStats(p);
+  if(!st.has) return "";
+  const cell=(v,dec)=>v===null||v===undefined?"—":fmt(v,dec);
+  const rowsHtml=st.rows.map(r=>{
+    const growth=r.growth===null?"—":
+      `${r.growth>=0?"+":""}${fmt(r.growth)}%${r.growthFlag?` <span class="chip warn" data-testid="comp-flag">≠ ${L("days","أيام")}</span>`:""}`;
+    return `<tr ${r.isClient?'style="background:var(--bg-raise)" data-testid="comp-row-client"':`data-testid="comp-row-${r.id}"`}>
+      <td>${r.isClient?"<b>":""}${esc(r.name)}${r.handle?` <span style="color:var(--ink-faint)">${esc(r.handle)}</span>`:""}${r.isClient?`</b> <span class="chip info">${esc(L("client","العميل"))}</span>`:""}${r.missingDate?` <span class="chip bad" data-testid="comp-nodate">${esc(L("capture date missing — not compared","تاريخ الالتقاط مفقود — لا مقارنة"))}</span>`:""}</td>
+      <td>${cell(r.followers,0)}</td>
+      <td>${r.folShare===null?"—":fmt(r.folShare)+"%"}</td>
+      <td>${growth}</td>
+      <td>${cell(r.posts,0)}</td>
+      <td>${r.engPerPost===null?"—":fmt(r.engPerPost,0)+(r.isClient?"":r.sample?` <span style="color:var(--ink-faint)">(n=${fmt(r.sample,0)})</span>`:"")}</td>
+      <td>${r.engShare===null?"—":fmt(r.engShare)+"%"}</td>
+    </tr>`;
+  }).join("");
+  const prov=st.rows.filter(r=>!r.isClient).map(r=>{
+    if(r.capturedAt) return esc(`${r.name} — ${L("captured from public profile on","التُقط من الملف العام في")} ${r.capturedAt}${r.prevCapturedAt?` (${L("previous capture","الالتقاط السابق")} ${r.prevCapturedAt})`:""}`);
+    return esc(`${r.name} — ${L("no capture date recorded","لا تاريخ التقاط مسجل")}`);
+  }).join("<br>");
+  const excl=st.excludedEng.length
+    ? `<div class="hint" data-testid="comp-excluded">${esc(L("Excluded from the engagement-share estimate (missing likes/comments/posts inputs): ","مستبعد من تقدير حصة التفاعل (مدخلات ناقصة): "))}${esc(st.excludedEng.join(", "))}</div>`
+    : "";
+  return `<div class="card" data-testid="comp-card-${p}">
+    <h3>🆚 ${esc(L("Competitor benchmark","مقارنة المنافسين"))} — ${esc(PLATFORMS[p].label)}</h3>
+    <p class="hint" style="margin-bottom:.6rem">${esc(L("Visible engagement = likes + comments only — the only per-post numbers a public profile shows. The client row is computed on the SAME basis from this audit's likes/comments/posts, never from total engagements.","التفاعل المرئي = الإعجابات + التعليقات فقط — الأرقام الوحيدة الظاهرة علناً لكل منشور. صف العميل محسوب بالأساس نفسه من هذا التدقيق، لا من إجمالي التفاعلات."))}</p>
+    <div class="tbl-wrap"><table class="data" data-testid="comp-table-${p}">
+      <thead><tr>
+        <th>${esc(L("Account","الحساب"))}</th><th>${esc(L("Followers","المتابعون"))}</th>
+        <th>${esc(L("Follower share","حصة المتابعين"))}</th><th>${esc(L("Growth","النمو"))}</th>
+        <th>${esc(L("Posts (period)","منشورات (الفترة)"))}</th>
+        <th>${esc(L("Visible eng / post","تفاعل مرئي / منشور"))}</th>
+        <th>${esc(L("Est. engagement share","حصة التفاعل التقديرية"))}</th>
+      </tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    ${excl}
+    <div class="hint" style="margin-top:.5rem" data-testid="comp-assumption">${esc(L("[ASSUMPTION] The engagement-share estimate treats each account's sampled per-post engagement as representative of its whole period (eng/post × posts).","[ASSUMPTION] تقدير حصة التفاعل يعامل متوسط العينة لكل حساب كممثل لكامل فترته (تفاعل/منشور × المنشورات)."))}</div>
+    <div class="hint" style="margin-top:.35rem" data-testid="comp-provenance">${esc(L("Client row: entered values for","صف العميل: قيم مُدخلة للفترة"))} ${esc(S.meta.curStart||"—")} → ${esc(S.meta.curEnd||"—")}.<br>${prov}</div>
+  </div>`;
+}
+
 function renderReport(){
   Object.keys(charts).forEach(killChart);
   const en=enabledPlatforms(), body=$("#reportBody");
@@ -2451,6 +2691,7 @@ function renderReport(){
     </div>`;
     html+=formatReport(p);
     html+=audienceReport(p);
+    html+=competitorReportHTML(p);
   });
   html+=trendsCardHTML();
   html+=archiveCardHTML();
@@ -2751,6 +2992,11 @@ function renderCalc(){
     <div class="card"><h3>7 · ${F("Community management","إدارة المجتمع")}</h3>
       <p style="font-size:.85rem;color:var(--ink-dim)">${F("The response rate needs all three inputs — comments, DMs received, responses sent. A blank field means unknown and blocks the calculation; a real zero must be entered as 0 (missing data never counts as zero). Computing against comments alone while DMs are unknown would inflate the rate, so it is not done.","معدل الاستجابة يتطلب المدخلات الثلاثة — التعليقات، الرسائل المستلمة، الردود المرسلة. الحقل الفارغ يعني «غير معروف» ويمنع الحساب؛ الصفر الحقيقي يُدخل 0 (البيانات الناقصة لا تُحسب صفراً أبداً). الحساب مقابل التعليقات وحدها مع جهل الرسائل يضخّم المعدل، لذلك لا يتم.")}</p>
       <p style="font-size:.85rem;color:var(--ink-dim)">${F("The comment side of the denominator reuses the Comments metric from the Engagement section — entered once, used twice, so the two can never conflict. A rate above 100% is possible (multiple replies per inbound item) and is shown as computed. Avg response time is reported with its trend (lower is better) but is not scored — no benchmark for it is claimed.","طرف التعليقات في المقام يعيد استخدام مقياس التعليقات من قسم التفاعل — يُدخل مرة ويُستخدم مرتين فلا تعارض ممكن. المعدل فوق 100% وارد (أكثر من رد لكل تفاعل) ويُعرض كما حُسب. متوسط زمن الاستجابة يُعرض مع اتجاهه (الأقل أفضل) لكنه لا يدخل في التقييم — لا يُدّعى معيار له.")}</p>
+    </div>
+    <div class="card"><h3>8 · ${F("Competitor benchmark","مقارنة المنافسين")}</h3>
+      <p style="font-size:.85rem;color:var(--ink-dim)">${F("Competitor values are manual captures from PUBLIC profiles. A capture without its date is listed but never compared — every compared value carries \"captured on DATE\". Growth uses two dated captures; windows differing from the audit period by more than 3 days (a tolerance constant set in this tool) are flagged \"≠ days\".","قيم المنافسين التقاطات يدوية من الملفات العامة. الالتقاط بلا تاريخ يُعرض ولا يُقارن أبداً — كل قيمة مقارَنة تحمل تاريخها. النمو يتطلب التقاطين مؤرخين؛ والنوافذ المختلفة عن فترة التدقيق بأكثر من 3 أيام (ثابت استرشادي في الأداة) تُعلَّم «≠ أيام».")}</p>
+      <div class="rec-evidence" style="direction:ltr;text-align:left">visible eng/post = (likes + comments) ÷ sampled posts · follower share = followers ÷ Σ followers · est. engagement share = (eng/post × posts) ÷ Σ(eng/post × posts)</div>
+      <p style="font-size:.85rem;color:var(--ink-dim)">${F("Comparisons only on metrics both sides actually have — the client row uses the same likes+comments basis (never total engagements), and any account missing an input is excluded from that share and named. Reach, impressions, saves and story metrics are not publicly visible and are never estimated.","المقارنة فقط على مقاييس متوفرة للطرفين — صف العميل بأساس الإعجابات+التعليقات نفسه (لا إجمالي التفاعلات)، وأي حساب ناقص المدخلات يُستبعد من تلك الحصة ويُسمّى. الوصول والظهور والحفظ ومقاييس القصص غير مرئية علناً ولا تُقدَّر أبداً.")}</p>
     </div>`;
 }
 
