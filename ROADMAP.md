@@ -26,12 +26,14 @@ template. Copy button; text appears in the printed report.
   recommendations).
 - Details: `docs/exec_summary.md`.
 
-## 3 · Community management module
+## 3 · Community management module — ✅ shipped 2026-08-28
 
 Quantified community metrics (the brief requires them; today only a qualitative checklist item):
 comments received, DMs received, responses sent, avg response time, response rate = responses ÷
 (comments + DMs). Manual entry per period; Community pillar scoring extended to use the
 quantitative rate when present, falling back to the qualitative answer when not.
+
+- Details: `docs/community_module.md`.
 
 ## 4 · Competitor benchmark tab
 

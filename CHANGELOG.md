@@ -2,6 +2,22 @@
 
 Full engineering notes for each milestone live in `docs/`.
 
+## 2026-08-28 — Community management module (roadmap item 3)
+
+- Quantified community metrics, manual entry per period: **DMs received**, **responses sent**,
+  **avg response time (min)** — the comment side reuses the existing Comments metric, entered
+  once, used twice. `response_rate = responses ÷ (comments + DMs) × 100` requires **all three
+  inputs** (blank blocks the calculation, an entered 0 counts, 0÷0 is no rate) — never computed
+  against comments alone.
+- New editable `response_rate` benchmark (placeholder 75%, preset-neutral). Community pillar:
+  60% rate-vs-benchmark + 25% responsiveness qual + 15% comment share when the rate exists;
+  the original 70/30 qual blend otherwise — quant extends, absence never punishes.
+- Scorecard tiles (response-time delta color inverted — lower is better), benchmark row, new
+  `response_gap` P1 rule with arithmetic evidence that supersedes the qualitative rule, and an
+  executive-summary community bullet (EN/AR). Calculations tab §7 documents the rules.
+- Paste-mapper synonyms (exact multi-word only) + CSV template coverage.
+- Suite: **508 passing** (27 new tests × desktop + Pixel 7). Details: `docs/community_module.md`.
+
 ## 2026-08-06 (3) — Executive summary generator (roadmap item 2)
 
 - New **copy-ready executive summary card** at the top of the Report, EN + AR, following the

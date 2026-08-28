@@ -838,7 +838,8 @@ const PLATFORMS = {
 /* metric def: key, label, ar, unit(count|pct|sec|hrs), section, platforms (null = all) */
 const SECTIONS = {
   "Audience":"الجمهور","Reach":"الوصول والظهور","Engagement":"التفاعل",
-  "Content":"المحتوى","Actions":"الإجراءات والزيارات","Platform-specific":"خاص بالمنصة"
+  "Content":"المحتوى","Actions":"الإجراءات والزيارات","Community":"إدارة المجتمع",
+  "Platform-specific":"خاص بالمنصة"
 };
 const METRICS = [
   // audience
@@ -870,6 +871,11 @@ const METRICS = [
   // traffic / action
   {key:"profile_visits",label:"Profile visits",ar:"زيارات الملف الشخصي",unit:"count",section:"Actions",optional:true},
   {key:"link_clicks",label:"Link / website clicks",ar:"نقرات الرابط / الموقع",unit:"count",section:"Actions",optional:true},
+  // community management — inbound volume handled by the team. The comment side of the
+  // denominator reuses the "Comments / replies" metric above (entered once, used twice).
+  {key:"dms_received",label:"DMs / messages received",ar:"الرسائل الخاصة المستلمة",unit:"count",section:"Community",optional:true,hint:"enter 0 if none — blank means unknown"},
+  {key:"responses_sent",label:"Responses sent (to comments + DMs)",ar:"الردود المرسلة (على التعليقات والرسائل)",unit:"count",section:"Community",optional:true},
+  {key:"avg_response_time",label:"Avg response time (minutes)",ar:"متوسط زمن الاستجابة (دقائق)",unit:"min",section:"Community",optional:true},
   // platform-specific
   {key:"story_completion",label:"Story completion rate %",ar:"معدل إكمال القصص %",unit:"pct",section:"Platform-specific",optional:true,platforms:["instagram"]},
   {key:"reels_plays",label:"Reels plays",ar:"تشغيلات الريلز",unit:"count",section:"Platform-specific",optional:true,platforms:["instagram"]},
@@ -995,16 +1001,17 @@ const BENCH_FIELDS = [
   {key:"er_reach",label:"Engagement rate by reach %",ar:"معدل التفاعل حسب الوصول %",unit:"pct"},
   {key:"reach_rate",label:"Reach rate % (reach ÷ followers)",ar:"معدل الوصول % (الوصول ÷ المتابعون)",unit:"pct"},
   {key:"posts_per_week",label:"Posts per week",ar:"منشورات في الأسبوع",unit:"count"},
-  {key:"video_share",label:"Video share of content %",ar:"حصة الفيديو من المحتوى %",unit:"pct"}
+  {key:"video_share",label:"Video share of content %",ar:"حصة الفيديو من المحتوى %",unit:"pct"},
+  {key:"response_rate",label:"Community response rate %",ar:"معدل الاستجابة للمجتمع %",unit:"pct"}
 ];
 const BENCH_DEFAULTS = {
-  instagram:{growth_rate:2,er_reach:5,reach_rate:25,posts_per_week:4,video_share:50},
-  facebook:{growth_rate:1,er_reach:4,reach_rate:15,posts_per_week:4,video_share:40},
-  tiktok:{growth_rate:4,er_reach:6,reach_rate:60,posts_per_week:4,video_share:100},
-  linkedin:{growth_rate:2,er_reach:4,reach_rate:20,posts_per_week:3,video_share:25},
-  youtube:{growth_rate:2,er_reach:4,reach_rate:30,posts_per_week:1,video_share:100},
-  snapchat:{growth_rate:2,er_reach:5,reach_rate:40,posts_per_week:7,video_share:100},
-  x:{growth_rate:1,er_reach:2,reach_rate:20,posts_per_week:5,video_share:30}
+  instagram:{growth_rate:2,er_reach:5,reach_rate:25,posts_per_week:4,video_share:50,response_rate:75},
+  facebook:{growth_rate:1,er_reach:4,reach_rate:15,posts_per_week:4,video_share:40,response_rate:75},
+  tiktok:{growth_rate:4,er_reach:6,reach_rate:60,posts_per_week:4,video_share:100,response_rate:75},
+  linkedin:{growth_rate:2,er_reach:4,reach_rate:20,posts_per_week:3,video_share:25,response_rate:75},
+  youtube:{growth_rate:2,er_reach:4,reach_rate:30,posts_per_week:1,video_share:100,response_rate:75},
+  snapchat:{growth_rate:2,er_reach:5,reach_rate:40,posts_per_week:7,video_share:100,response_rate:75},
+  x:{growth_rate:1,er_reach:2,reach_rate:20,posts_per_week:5,video_share:30,response_rate:75}
 };
 
 /* Industry engagement index — DIRECTIONALLY grounded in RivalIQ 2024 median
@@ -1032,7 +1039,10 @@ function buildIndustryBench(ind){
       er_reach:_r1(b.er_reach*f.er),
       reach_rate:_r1(b.reach_rate*f.reach),
       posts_per_week:_r1(b.posts_per_week*f.cadence),
-      video_share:Math.min(100,Math.round(b.video_share*f.video))
+      video_share:Math.min(100,Math.round(b.video_share*f.video)),
+      /* responsiveness is a service standard, not an engagement-index property —
+         presets pass the baseline through unscaled */
+      response_rate:b.response_rate
     };
   });
   return out;
@@ -1253,6 +1263,7 @@ function csvTemplate(){
   });
   const csv = rows.map(r=>r.join(",")).join("\n");
   downloadFile("organicpulse_template.csv",csv,"text/csv");
+  return csv;
 }
 /* RFC4180-correct: quoted fields may contain commas, quotes ("") and NEWLINES.
    Meta exports put multi-line post captions in quoted fields, so a line-splitting
@@ -1336,6 +1347,11 @@ function derive(p,period){
   d.er_impressions  = (eng!==null&&impressions)   ? eng/impressions*100 : null;
   d.eng_per_post    = (eng!==null&&posts)         ? eng/posts : null;
   d.posts_per_week  = (posts!==null&&days)        ? posts/(days/7) : null;
+  /* community: response rate needs ALL THREE inputs (0 is a valid entry, blank is not) —
+     computing against comments alone when DMs are unknown would inflate the rate. */
+  const comments=g("comments"), dms=g("dms_received"), resp=g("responses_sent");
+  d.inbound         = (comments!==null&&dms!==null) ? comments+dms : null;
+  d.response_rate   = (resp!==null&&d.inbound!==null&&d.inbound>0) ? resp/d.inbound*100 : null;
   return d;
 }
 function periodDays(period){
@@ -1474,11 +1490,17 @@ function scorePlatform(p){
     [qualScore(p,["posting_consistency"]),60],
     [normScore(dCur.posts_per_week,B.posts_per_week),40]
   ]);
-  // COMMUNITY: responsiveness qual (70%) + comment share of engagement trend (30%)
+  // COMMUNITY: quantitative response rate vs bench (60%) + responsiveness qual (25%)
+  // + comment share of engagement (15%) when the rate is computable; otherwise the
+  // original qual (70%) + comment share (30%) blend — quant extends, never punishes absence.
   const comments=getMetric(p,"current","comments"), engT=getMetric(p,"current","engagements");
   const commShare=(comments!==null&&engT)?comments/engT*100:null;
   const commScore=commShare===null?null:Math.max(0,Math.min(100,commShare*7.5)); // 10% comment share ≈ 75
-  const community = avgDefined([[qualScore(p,["response_time"]),70],[commScore,30]]);
+  const respRate=track("Community response rate (needs comments + DMs received + responses sent)",dCur.response_rate);
+  const respScore=normScore(respRate,B.response_rate);
+  const community = respScore!==null
+    ? avgDefined([[respScore,60],[qualScore(p,["response_time"]),25],[commScore,15]])
+    : avgDefined([[qualScore(p,["response_time"]),70],[commScore,30]]);
 
   const pillars={growth,engagement,content,consistency,community};
   const w=S.weights;
@@ -1625,10 +1647,20 @@ const REC_RULES = [
      return null; },
    action:()=>L("Complete bio: clear value proposition, link, contact, category, highlights/pinned content.",
                 "أكمل الملف: عرض قيمة واضح، رابط، تواصل، فئة، وقصص مميزة/محتوى مثبّت.")},
+  {id:"response_gap",title:()=>L("Community response gap — inbound going unanswered","فجوة استجابة — تفاعلات واردة بلا رد"),priority:"P1",effort:"S",
+   impact:()=>L("Answered comments and DMs compound loyalty and repeat engagement","الردود على التعليقات والرسائل تراكم الولاء وتكرار التفاعل"),
+   cond:()=>L("Response rate < benchmark (needs comments + DMs received + responses sent)","معدل الاستجابة أقل من المعيار (يتطلب التعليقات + الرسائل المستلمة + الردود المرسلة)"),
+   test:(p,c)=>{ const B=S.benchmarks[p], rr=c.derived.response_rate;
+     if(rr===null||num(B.response_rate)===null||rr>=B.response_rate) return null;
+     return L(`Response rate = ${pctFmt(rr)} vs target ${pctFmt(B.response_rate)}: ${fmt(getMetric(p,"current","responses_sent"),0)} responses to ${fmt(c.derived.inbound,0)} inbound (${fmt(getMetric(p,"current","comments"),0)} comments + ${fmt(getMetric(p,"current","dms_received"),0)} DMs).`,
+              `معدل الاستجابة = ${pctFmt(rr)} مقابل الهدف ${pctFmt(B.response_rate)}: ${fmt(getMetric(p,"current","responses_sent"),0)} رداً على ${fmt(c.derived.inbound,0)} تفاعلاً وارداً (${fmt(getMetric(p,"current","comments"),0)} تعليقاً + ${fmt(getMetric(p,"current","dms_received"),0)} رسالة).`); },
+   action:()=>L("Set a response-time SLA in business hours, add saved replies for the top 10 questions, route DMs to a named owner, and block two daily inbox slots.",
+                "حدد اتفاقية زمن استجابة في أوقات العمل، أضف ردوداً محفوظة لأكثر 10 أسئلة تكراراً، وعيّن مسؤولاً محدداً للرسائل، واحجز فترتين يوميتين لصندوق الوارد.")},
   {id:"qual_response",title:()=>L("Community management gap","فجوة في إدارة المجتمع"),priority:"P1",effort:"S",
    impact:()=>L("Response speed drives repeat engagement and trust","سرعة الرد تعزز تكرار التفاعل والثقة"),
-   cond:()=>L("Qualitative: response time = Missing","نوعي: سرعة الرد = غير متوفرة"),
+   cond:()=>L("Qualitative: response time = Missing (only when no quantitative rate exists)","نوعي: سرعة الرد = غير متوفرة (فقط عند غياب المعدل الكمي)"),
    test:(p,c)=>{ const v=S.platforms[p].qual.response_time;
+     if(c.derived.response_rate!==null) return null; // quantitative rule supersedes
      if(v===0) return L("Qualitative check: comments/DMs response marked as Missing (>24h or none).",
                         "فحص نوعي: الرد على التعليقات/الرسائل مصنّف كغير متوفر (أكثر من 24 ساعة أو لا يوجد).");
      return null; },
@@ -2211,7 +2243,22 @@ function buildExecSummary(lang){
   });
   if(best) bl.push(T(`Best-performing format: ${best.r.label} on ${PLATFORMS[best.p].label} — ${fmt(best.r.shareOutput,0)}% of posts earning ${fmt(best.r.shareEng,0)}% of engagement (index ${idxFmt(best.r.index)}).`,
                      `أفضل صيغة أداءً: ${best.r.label} على ${PLATFORMS[best.p].label} — ${fmt(best.r.shareOutput,0)}% من المنشورات تحقق ${fmt(best.r.shareEng,0)}% من التفاعل (المؤشر ${idxFmt(best.r.index)}).`));
-  /* 5 · archived trajectory */
+  /* 5 · community responsiveness — only platforms where all three inputs exist */
+  const withRR=plats.filter(p=>derive(p,"current").response_rate!==null);
+  if(withRR.length){
+    const tot=withRR.reduce((a,p)=>({r:a.r+getMetric(p,"current","responses_sent"),i:a.i+derive(p,"current").inbound}),{r:0,i:0});
+    if(tot.i>0){
+      const rate=tot.r/tot.i*100;
+      let tgt="";
+      if(withRR.length===1){
+        const b=S.benchmarks[withRR[0]].response_rate;
+        if(num(b)!==null) tgt=T(` (target ${fmt(b)}%: ${rate>=b?"met":"not met"})`,` (الهدف ${fmt(b)}%: ${rate>=b?"محقق":"غير محقق"})`);
+      }
+      bl.push(T(`Community response: ${fmt(tot.r,0)} of ${fmt(tot.i,0)} inbound interactions answered — ${fmt(rate)}%${tgt}${withRR.length<plats.length?` (${withRR.map(p=>PLATFORMS[p].label).join(" + ")} only)`:""}.`,
+                `استجابة المجتمع: ${fmt(tot.r,0)} من ${fmt(tot.i,0)} تفاعلاً وارداً تمت الإجابة عنه — ${fmt(rate)}%${tgt}${withRR.length<plats.length?` (${withRR.map(p=>PLATFORMS[p].label).join(" + ")} فقط)`:""}.`));
+    }
+  }
+  /* 6 · archived trajectory */
   const arc=archForClient();
   if(arc.length>=2){
     const sumF=a=>{ const vals=Object.values(a.platforms).map(pl=>num(pl.metrics.followers)).filter(v=>v!==null);
@@ -2285,7 +2332,7 @@ function execGenCardHTML(){
          <button class="btn btn-primary" id="btnExecCopy" data-testid="btn-exec-copy">📋 ${esc(L("Copy","نسخ"))}</button>
          <button class="btn" id="btnExecCopyBoth" data-testid="btn-exec-copy-both">📋 ${esc(L("Copy EN + AR","نسخ EN + AR"))}</button>
        </div>`
-    : `<div class="empty-state" data-testid="exec-summary-empty">${esc(L("Not enough data for a summary yet — it needs at least two of: scores, followers, reach/engagements, formats, archive.","لا توجد بيانات كافية للملخص — يحتاج اثنين على الأقل من: الدرجات، المتابعون، الوصول/التفاعل، الصيغ، الأرشيف."))}</div>`;
+    : `<div class="empty-state" data-testid="exec-summary-empty">${esc(L("Not enough data for a summary yet — it needs at least two of: scores, followers, reach/engagements, formats, community, archive.","لا توجد بيانات كافية للملخص — يحتاج اثنين على الأقل من: الدرجات، المتابعون، الوصول/التفاعل، الصيغ، المجتمع، الأرشيف."))}</div>`;
   return `<div class="card" data-testid="exec-card">
     <h3>📝 ${esc(L("Executive summary (copy-ready)","الملخص التنفيذي (جاهز للنسخ)"))}</h3>
     <p class="hint" style="margin-bottom:.7rem">${esc(L("Built only from the values in this audit — sentences with missing inputs are omitted, never padded.","مبني فقط من قيم هذا التدقيق — الجمل ذات المدخلات الناقصة تُحذف ولا تُحشى أبداً."))}</p>
@@ -2367,12 +2414,19 @@ function renderReport(){
       [L("Posts/week","منشورات/أسبوع"),fmt(d.posts_per_week),deltaPct(d.posts_per_week,r.derivedPrev.posts_per_week)],
       [L("Eng/post","تفاعل/منشور"),fmt(d.eng_per_post,0),deltaPct(d.eng_per_post,r.derivedPrev.eng_per_post)]
     ];
+    // community tiles appear only when their inputs were entered — never as empty dashes
+    if(d.response_rate!==null)
+      kpis.push([L("Response rate","معدل الاستجابة"),pctFmt(d.response_rate),deltaPct(d.response_rate,r.derivedPrev.response_rate)]);
+    const artCur=getMetric(p,"current","avg_response_time");
+    if(artCur!==null)
+      kpis.push([L("Avg response (min)","متوسط الرد (دقيقة)"),fmt(artCur),deltaPct(artCur,getMetric(p,"previous","avg_response_time")),true]); // lower is better
     const benchRows=[
       [L("Growth % / period","النمو % / الفترة"),r.growthRate,B.growth_rate],
       [L("ER by reach %","التفاعل بالوصول %"),d.er_reach,B.er_reach],
       [L("Reach rate %","معدل الوصول %"),d.reach_rate,B.reach_rate],
       [L("Posts / week","منشورات / أسبوع"),d.posts_per_week,B.posts_per_week],
-      [L("Video share %","حصة الفيديو %"),getMetric(p,"current","pct_video"),B.video_share]
+      [L("Video share %","حصة الفيديو %"),getMetric(p,"current","pct_video"),B.video_share],
+      [L("Response rate %","معدل الاستجابة %"),d.response_rate,B.response_rate]
     ].map(([lab,act,ben])=>{
       const dl=act===null?null:act-ben;
       const cls=dl===null?"delta-flat":(dl>=0?"delta-up":"delta-down");
@@ -2384,8 +2438,8 @@ function renderReport(){
         <span class="chip ${pb.cls}">${r.overall===null?L("N/A","غير متاح"):Math.round(r.overall)+" / 100 · "+pb.label}</span>
         ${r.erFallbackUsed?`<span class="chip warn">${L("ER fallback: by followers (no reach data)","بديل: التفاعل بالمتابعين (لا بيانات وصول)")}</span>`:""}</h3>
       ${narrative(p,r)}
-      <div class="kpi-grid">${kpis.map(([l,v,dl])=>{
-        const cls=dl===null?"delta-flat":(dl>=0?"delta-up":"delta-down");
+      <div class="kpi-grid">${kpis.map(([l,v,dl,inv])=>{
+        const cls=dl===null?"delta-flat":((inv?dl<=0:dl>=0)?"delta-up":"delta-down");
         return `<div class="kpi"><div class="k-label">${l}</div><div class="k-val">${v}</div>
           <div class="k-delta ${cls}">${dl===null?L("vs prev: —","مقابل السابقة: —"):(dl>=0?"▲ +":"▼ ")+fmt(dl)+"%"}</div></div>`;}).join("")}</div>
       <div style="margin:0.8rem 0">${pillarBarsHTML(r.pillars)}</div>
@@ -2651,14 +2705,16 @@ function renderCalc(){
     [L("ER by views (format)","التفاعل بالمشاهدات (صيغة)"),"format engagements ÷ format views × 100"],
     [L("Share of output % (format)","حصة الإنتاج % (صيغة)"),"format posts ÷ all posts with format data × 100"],
     [L("Share of engagement % (format)","حصة التفاعل % (صيغة)"),"format engagements ÷ all engagements with format data × 100"],
-    [L("Format index","مؤشر الصيغة"),"share of engagement % ÷ share of output %"]
+    [L("Format index","مؤشر الصيغة"),"share of engagement % ÷ share of output %"],
+    [L("Inbound interactions (community)","التفاعلات الواردة (مجتمع)"),"comments + dms_received"],
+    [L("Community response rate %","معدل الاستجابة للمجتمع %"),"responses_sent ÷ (comments + dms_received) × 100"]
   ].map(([n,f])=>`<tr><td>${esc(n)}</td><td style="direction:ltr;text-align:left">${esc(f)}</td></tr>`).join("");
   const pillarRows=[
     [t("pGrowth","Growth"),S.weights.growth,F("75% growth rate vs benchmark + 25% hashtag/keyword qualitative","75% معدل النمو مقابل المعيار + 25% تقييم الهاشتاقات النوعي")],
     [t("pEngagement","Engagement"),S.weights.engagement,F("70% ER-by-reach vs benchmark (falls back to ER-by-followers if reach missing, flagged in report) + 30% engagement-per-post trend (no change = 75; each ±1% change = ±1.5 pts)","70% التفاعل بالوصول مقابل المعيار (يُستبدل بالتفاعل بالمتابعين إذا غاب الوصول، مع تنويه في التقرير) + 30% اتجاه التفاعل لكل منشور (لا تغيير = 75؛ كل ±1% = ±1.5 نقطة)")],
     [t("pContent","Content"),S.weights.content,F("40% posting frequency vs benchmark + 20% video share vs benchmark + 40% qualitative (bio, visual identity, CTAs, pillar balance)","40% وتيرة النشر مقابل المعيار + 20% حصة الفيديو مقابل المعيار + 40% تقييم نوعي (الملف، الهوية البصرية، الدعوات، توازن المحاور)")],
     [t("pConsistency","Consistency"),S.weights.consistency,F("60% cadence-regularity qualitative + 40% posting frequency vs benchmark","60% انتظام الإيقاع (نوعي) + 40% وتيرة النشر مقابل المعيار")],
-    [t("pCommunity","Community"),S.weights.community,F("70% responsiveness qualitative + 30% comment share of engagements (10% share ≈ 75 pts)","70% سرعة الاستجابة (نوعي) + 30% حصة التعليقات من التفاعلات (حصة 10% ≈ 75 نقطة)")]
+    [t("pCommunity","Community"),S.weights.community,F("When the quantitative response rate is computable: 60% response rate vs benchmark + 25% responsiveness qualitative + 15% comment share of engagements. Otherwise (fallback): 70% responsiveness qualitative + 30% comment share (10% share ≈ 75 pts)","عند توفر معدل الاستجابة الكمي: 60% المعدل مقابل المعيار + 25% سرعة الاستجابة (نوعي) + 15% حصة التعليقات من التفاعلات. وإلا (البديل): 70% نوعي + 30% حصة التعليقات (حصة 10% ≈ 75 نقطة)")]
   ].map(([n,w,d])=>`<tr><td>${esc(n)}</td><td>×${w}%</td><td>${d}</td></tr>`).join("");
   const recRows=REC_RULES.map(r=>
     `<tr><td><span class="chip ${r.priority==="P0"?"bad":r.priority==="P1"?"warn":"info"}">${r.priority}</span></td>
@@ -2691,6 +2747,10 @@ function renderCalc(){
     <div class="card"><h3>6 · ${F("Monthly trend archive","أرشيف الاتجاهات الشهرية")}</h3>
       <p style="font-size:.85rem;color:var(--ink-dim)">${F("Closing a month deep-copies the current-period metrics, derived rates and pillar scores into an immutable snapshot — editing benchmarks afterwards never rewrites archived scores. Trend Δ% = (snapshot − previous snapshot) ÷ previous × 100, comparing consecutive snapshots of the same client.","إغلاق الشهر ينسخ مقاييس الفترة الحالية والمعدلات المشتقة ودرجات المحاور إلى لقطة غير قابلة للتعديل — تعديل المعايير لاحقاً لا يغيّر الدرجات المؤرشفة. Δ% للاتجاه = (اللقطة − السابقة) ÷ السابقة × 100 لنفس العميل.")}</p>
       <p style="font-size:.85rem;color:var(--ink-dim)">${F("Period-total metrics (reach, engagements) are flagged \"≠ days\" when the two periods have different lengths — their totals are not directly comparable, while point-in-time (followers) and rate metrics (ER, scores) remain valid.","تُعلَّم مقاييس مجموع الفترة (الوصول، التفاعلات) بعلامة \"≠ أيام\" عند اختلاف طول الفترتين — مجاميعها غير قابلة للمقارنة المباشرة، بينما تبقى المقاييس اللحظية (المتابعون) والمعدلات صالحة.")}</p>
+    </div>
+    <div class="card"><h3>7 · ${F("Community management","إدارة المجتمع")}</h3>
+      <p style="font-size:.85rem;color:var(--ink-dim)">${F("The response rate needs all three inputs — comments, DMs received, responses sent. A blank field means unknown and blocks the calculation; a real zero must be entered as 0 (missing data never counts as zero). Computing against comments alone while DMs are unknown would inflate the rate, so it is not done.","معدل الاستجابة يتطلب المدخلات الثلاثة — التعليقات، الرسائل المستلمة، الردود المرسلة. الحقل الفارغ يعني «غير معروف» ويمنع الحساب؛ الصفر الحقيقي يُدخل 0 (البيانات الناقصة لا تُحسب صفراً أبداً). الحساب مقابل التعليقات وحدها مع جهل الرسائل يضخّم المعدل، لذلك لا يتم.")}</p>
+      <p style="font-size:.85rem;color:var(--ink-dim)">${F("The comment side of the denominator reuses the Comments metric from the Engagement section — entered once, used twice, so the two can never conflict. A rate above 100% is possible (multiple replies per inbound item) and is shown as computed. Avg response time is reported with its trend (lower is better) but is not scored — no benchmark for it is claimed.","طرف التعليقات في المقام يعيد استخدام مقياس التعليقات من قسم التفاعل — يُدخل مرة ويُستخدم مرتين فلا تعارض ممكن. المعدل فوق 100% وارد (أكثر من رد لكل تفاعل) ويُعرض كما حُسب. متوسط زمن الاستجابة يُعرض مع اتجاهه (الأقل أفضل) لكنه لا يدخل في التقييم — لا يُدّعى معيار له.")}</p>
     </div>`;
 }
 
@@ -2925,7 +2985,12 @@ const METRIC_SYN=[
  {k:"reels_plays",          ex:["reels plays","plays","\u062a\u0634\u063a\u064a\u0644\u0627\u062a \u0627\u0644\u0631\u064a\u0644\u0632"]},
  {k:"video_3s_views",       ex:["3 second video views","3 sec video views","3 second views"]},
  {k:"negative_feedback",    ex:["negative feedback","negative feedback from users","\u0627\u0644\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0627\u0644\u0633\u0644\u0628\u064a\u0647"]},
- {k:"story_completion",     ex:["story completion rate","\u0645\u0639\u062f\u0644 \u0627\u0643\u0645\u0627\u0644 \u0627\u0644\u0642\u0635\u0635"]}
+ {k:"story_completion",     ex:["story completion rate","\u0645\u0639\u062f\u0644 \u0627\u0643\u0645\u0627\u0644 \u0627\u0644\u0642\u0635\u0635"]},
+ /* community management \u2014 multi-word phrases only, so bare UI words like
+    "Messages" on Instagram screens can never be swallowed by these */
+ {k:"dms_received",         ex:["dms received","messages received","direct messages received","\u0627\u0644\u0631\u0633\u0627\u0626\u0644 \u0627\u0644\u0645\u0633\u062a\u0644\u0645\u0629","\u0627\u0644\u0631\u0633\u0627\u0626\u0644 \u0627\u0644\u062e\u0627\u0635\u0629 \u0627\u0644\u0645\u0633\u062a\u0644\u0645\u0629"]},
+ {k:"responses_sent",       ex:["responses sent","replies sent","\u0627\u0644\u0631\u062f\u0648\u062f \u0627\u0644\u0645\u0631\u0633\u0644\u0629"]},
+ {k:"avg_response_time",    ex:["avg response time","average response time","\u0645\u062a\u0648\u0633\u0637 \u0632\u0645\u0646 \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629"]}
 ];
 /* Pull every recognised label out of a line, in reading order, longest match
    first and non-overlapping.  A naive scan maps "Views Net followers
