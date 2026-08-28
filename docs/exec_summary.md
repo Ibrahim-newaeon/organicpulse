@@ -24,7 +24,9 @@ The summary renders only when **≥ 2 headline bullets** could be built. Candida
 3. Visibility & response — reach · engagements · ER by reach, plus benchmark target met/not-met
    when a single platform is scoped.
 4. Best-performing format — highest format index, only when ≥ 2 format rows exist.
-5. Archived trajectory — first → last follower total, only when ≥ 2 archived months for the
+5. Community response — responses ÷ inbound across platforms where all three community
+   inputs exist (added 2026-08-28 with roadmap item 3).
+6. Archived trajectory — first → last follower total, only when ≥ 2 archived months for the
    active client.
 
 Fewer than two → an empty state (`exec-summary-empty`). A one-metric audit never produces a
