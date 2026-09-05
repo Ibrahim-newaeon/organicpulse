@@ -15,7 +15,12 @@
       "Read(**/.env)",
       "Bash(git push --force:*)",
       "Bash(git reset --hard:*)",
-      "Bash(rm -rf:*)"
-    ]
+      "Bash(rm -rf:*)",
+      "Read(**/.env.*.local)",
+      "Read(**/.env.staging)",
+      "Read(**/.dev.vars)",
+      "Read(**/.dev.vars.*)"
+    ],
+    "ask": []
   }
 }
